@@ -1,0 +1,558 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		053A32E6CC23492D4ECA5043 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F03C49D454D4CBD385A709D /* SettingsView.swift */; };
+		097D1A0F49EC23539E1F8D62 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3133207BE2B8652C101C907 /* Store.swift */; };
+		0A32428622545AC920C044D2 /* Bridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FBF54397BD8ED038E4D1D1C /* Bridge.swift */; };
+		100B19072AE96D3906E34672 /* DictationRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A69A8DE895507B9FDBFE937E /* DictationRow.swift */; };
+		1106FD51DD9678296BED34BC /* Polish.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F4753FFF76D110BAA24380 /* Polish.swift */; };
+		13D28D83A1A7972E25492397 /* KeyboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDDE951FE02F3B5A600ACC63 /* KeyboardView.swift */; };
+		16E5BE199B92810FF60F9A89 /* Wav.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DDC535F4DBA05AF9E93CC7B /* Wav.swift */; };
+		220C08B27585EC317AD813F4 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 439197DFF3572396D39197A4 /* KeyboardViewController.swift */; };
+		2A7CF6D3706292E1E9F469CA /* Bridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FBF54397BD8ED038E4D1D1C /* Bridge.swift */; };
+		2FED36A4835C1471E9FA715B /* KeyboardSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33DF5B9FB7A5E3B1E1227A82 /* KeyboardSetupView.swift */; };
+		379603F8291B2C5CDD82742D /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = E4838B14B703BF02085570AE /* WhisperKit */; };
+		666D957782C31ED90A376DA3 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 732A80CA83FC54045FE68EEF /* Colors.swift */; };
+		682F68A4F76B827CAF5EED4D /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE51BECCE54193110255E6A /* Audio.swift */; };
+		78B9BA9B9F47294D5365EB58 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 732A80CA83FC54045FE68EEF /* Colors.swift */; };
+		8DF970D5F499491F97B59893 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3133207BE2B8652C101C907 /* Store.swift */; };
+		8F62C08299D6A5608C482EB1 /* Engine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B2E160EDA6CE19AF24F0C97 /* Engine.swift */; };
+		94768A4746E02A819DAB1796 /* VoiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6168E656B8314C256D20117 /* VoiceView.swift */; };
+		985A13E3EA50BFFD2D1A3AC7 /* Transcriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60A640DF419420F07CD2F3B /* Transcriber.swift */; };
+		B54DE38E9C6A72582AA0A7B8 /* TalkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E6C03D8795BDE0325095B68 /* TalkView.swift */; };
+		C7405ABE52A9B44322B36425 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3D42A9E0D5403EB8D23FA370 /* Assets.xcassets */; };
+		D7C8FCF0C8901BBD058FD803 /* YapKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EA2AB72B4B41F0E4F9924B50 /* YapKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		E32B43BAD18FAD293C74643A /* YapApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C05B85FABA98895DC4BA34E2 /* YapApp.swift */; };
+		F7E8D5BC23AFEB3ECB039C7B /* BrandMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11264640D5CE5A6BC1428B4D /* BrandMark.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		E99A562362D7EC856BA999BC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4AE7B800E39E26B51301E986 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5101964F19BB5218891CBCA0;
+			remoteInfo = YapKeyboard;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		EC2AC97B619674CBAC9D6507 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D7C8FCF0C8901BBD058FD803 /* YapKeyboard.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0AE51BECCE54193110255E6A /* Audio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Audio.swift; sourceTree = "<group>"; };
+		0F03C49D454D4CBD385A709D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		11264640D5CE5A6BC1428B4D /* BrandMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMark.swift; sourceTree = "<group>"; };
+		2E6C03D8795BDE0325095B68 /* TalkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalkView.swift; sourceTree = "<group>"; };
+		33DF5B9FB7A5E3B1E1227A82 /* KeyboardSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardSetupView.swift; sourceTree = "<group>"; };
+		3B2E160EDA6CE19AF24F0C97 /* Engine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Engine.swift; sourceTree = "<group>"; };
+		3D42A9E0D5403EB8D23FA370 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		3DDC535F4DBA05AF9E93CC7B /* Wav.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Wav.swift; sourceTree = "<group>"; };
+		43785856E98D16452AB60811 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		439197DFF3572396D39197A4 /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
+		69F4753FFF76D110BAA24380 /* Polish.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Polish.swift; sourceTree = "<group>"; };
+		732A80CA83FC54045FE68EEF /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
+		7FBF54397BD8ED038E4D1D1C /* Bridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bridge.swift; sourceTree = "<group>"; };
+		88E195C5BAC23C15C9BC9FC7 /* Yap.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Yap.entitlements; sourceTree = "<group>"; };
+		A69A8DE895507B9FDBFE937E /* DictationRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationRow.swift; sourceTree = "<group>"; };
+		B1AB804C7A8FACA09101C850 /* Yap.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Yap.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B3133207BE2B8652C101C907 /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
+		B4049E9D95C96D914F7C8B4C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B60A640DF419420F07CD2F3B /* Transcriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transcriber.swift; sourceTree = "<group>"; };
+		B6168E656B8314C256D20117 /* VoiceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceView.swift; sourceTree = "<group>"; };
+		C05B85FABA98895DC4BA34E2 /* YapApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YapApp.swift; sourceTree = "<group>"; };
+		C1CBA42E260BE4C3615F1F81 /* Keyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Keyboard.entitlements; sourceTree = "<group>"; };
+		CDDE951FE02F3B5A600ACC63 /* KeyboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardView.swift; sourceTree = "<group>"; };
+		EA2AB72B4B41F0E4F9924B50 /* YapKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = YapKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C1AFE66CB69BA6E8938476D4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				379603F8291B2C5CDD82742D /* WhisperKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		038A2B80C89B267846B9C786 /* Yap */ = {
+			isa = PBXGroup;
+			children = (
+				3D42A9E0D5403EB8D23FA370 /* Assets.xcassets */,
+				0AE51BECCE54193110255E6A /* Audio.swift */,
+				3B2E160EDA6CE19AF24F0C97 /* Engine.swift */,
+				B4049E9D95C96D914F7C8B4C /* Info.plist */,
+				69F4753FFF76D110BAA24380 /* Polish.swift */,
+				B60A640DF419420F07CD2F3B /* Transcriber.swift */,
+				3DDC535F4DBA05AF9E93CC7B /* Wav.swift */,
+				88E195C5BAC23C15C9BC9FC7 /* Yap.entitlements */,
+				C05B85FABA98895DC4BA34E2 /* YapApp.swift */,
+				6E76503C4B116020A021699E /* Views */,
+			);
+			path = Yap;
+			sourceTree = "<group>";
+		};
+		400C6E802C568B0401214114 = {
+			isa = PBXGroup;
+			children = (
+				E19D5EC8A587752237FF82B7 /* Keyboard */,
+				B5C1974FD7D92842AB082A2E /* Shared */,
+				038A2B80C89B267846B9C786 /* Yap */,
+				A18D8714EFBDEA5C7C62033D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6E76503C4B116020A021699E /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				11264640D5CE5A6BC1428B4D /* BrandMark.swift */,
+				A69A8DE895507B9FDBFE937E /* DictationRow.swift */,
+				33DF5B9FB7A5E3B1E1227A82 /* KeyboardSetupView.swift */,
+				0F03C49D454D4CBD385A709D /* SettingsView.swift */,
+				2E6C03D8795BDE0325095B68 /* TalkView.swift */,
+				B6168E656B8314C256D20117 /* VoiceView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A18D8714EFBDEA5C7C62033D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B1AB804C7A8FACA09101C850 /* Yap.app */,
+				EA2AB72B4B41F0E4F9924B50 /* YapKeyboard.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		B5C1974FD7D92842AB082A2E /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				7FBF54397BD8ED038E4D1D1C /* Bridge.swift */,
+				732A80CA83FC54045FE68EEF /* Colors.swift */,
+				B3133207BE2B8652C101C907 /* Store.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		E19D5EC8A587752237FF82B7 /* Keyboard */ = {
+			isa = PBXGroup;
+			children = (
+				43785856E98D16452AB60811 /* Info.plist */,
+				C1CBA42E260BE4C3615F1F81 /* Keyboard.entitlements */,
+				CDDE951FE02F3B5A600ACC63 /* KeyboardView.swift */,
+				439197DFF3572396D39197A4 /* KeyboardViewController.swift */,
+			);
+			path = Keyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5101964F19BB5218891CBCA0 /* YapKeyboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E2D6739477BA85B1B1A1E01A /* Build configuration list for PBXNativeTarget "YapKeyboard" */;
+			buildPhases = (
+				4B4FE5948648C7CD446D4742 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = YapKeyboard;
+			packageProductDependencies = (
+			);
+			productName = YapKeyboard;
+			productReference = EA2AB72B4B41F0E4F9924B50 /* YapKeyboard.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		710EE34FE917051AE71B5D08 /* Yap */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 339899393FC039E060021362 /* Build configuration list for PBXNativeTarget "Yap" */;
+			buildPhases = (
+				8B64A7FDEF145D718349D9FC /* Sources */,
+				F3DD61CD507153580DEA8DEF /* Resources */,
+				C1AFE66CB69BA6E8938476D4 /* Frameworks */,
+				EC2AC97B619674CBAC9D6507 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D36EBC98F126C7E32FA259C8 /* PBXTargetDependency */,
+			);
+			name = Yap;
+			packageProductDependencies = (
+				E4838B14B703BF02085570AE /* WhisperKit */,
+			);
+			productName = Yap;
+			productReference = B1AB804C7A8FACA09101C850 /* Yap.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4AE7B800E39E26B51301E986 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					5101964F19BB5218891CBCA0 = {
+						DevelopmentTeam = 6GAVK2Q4AG;
+						ProvisioningStyle = Automatic;
+					};
+					710EE34FE917051AE71B5D08 = {
+						DevelopmentTeam = 6GAVK2Q4AG;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = B0EFA3BC1FEB8FAC74135382 /* Build configuration list for PBXProject "Yap" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 400C6E802C568B0401214114;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F956202BF69E3A5F93E816B3 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				710EE34FE917051AE71B5D08 /* Yap */,
+				5101964F19BB5218891CBCA0 /* YapKeyboard */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F3DD61CD507153580DEA8DEF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C7405ABE52A9B44322B36425 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4B4FE5948648C7CD446D4742 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2A7CF6D3706292E1E9F469CA /* Bridge.swift in Sources */,
+				666D957782C31ED90A376DA3 /* Colors.swift in Sources */,
+				13D28D83A1A7972E25492397 /* KeyboardView.swift in Sources */,
+				220C08B27585EC317AD813F4 /* KeyboardViewController.swift in Sources */,
+				8DF970D5F499491F97B59893 /* Store.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8B64A7FDEF145D718349D9FC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				682F68A4F76B827CAF5EED4D /* Audio.swift in Sources */,
+				F7E8D5BC23AFEB3ECB039C7B /* BrandMark.swift in Sources */,
+				0A32428622545AC920C044D2 /* Bridge.swift in Sources */,
+				78B9BA9B9F47294D5365EB58 /* Colors.swift in Sources */,
+				100B19072AE96D3906E34672 /* DictationRow.swift in Sources */,
+				8F62C08299D6A5608C482EB1 /* Engine.swift in Sources */,
+				2FED36A4835C1471E9FA715B /* KeyboardSetupView.swift in Sources */,
+				1106FD51DD9678296BED34BC /* Polish.swift in Sources */,
+				053A32E6CC23492D4ECA5043 /* SettingsView.swift in Sources */,
+				097D1A0F49EC23539E1F8D62 /* Store.swift in Sources */,
+				B54DE38E9C6A72582AA0A7B8 /* TalkView.swift in Sources */,
+				985A13E3EA50BFFD2D1A3AC7 /* Transcriber.swift in Sources */,
+				94768A4746E02A819DAB1796 /* VoiceView.swift in Sources */,
+				16E5BE199B92810FF60F9A89 /* Wav.swift in Sources */,
+				E32B43BAD18FAD293C74643A /* YapApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D36EBC98F126C7E32FA259C8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5101964F19BB5218891CBCA0 /* YapKeyboard */;
+			targetProxy = E99A562362D7EC856BA999BC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0A3F6D9B2702CD317657A4F3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Keyboard/Keyboard.entitlements;
+				INFOPLIST_FILE = Keyboard/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.tinkerstudio.yap.ios.keyboard;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		2490571A3B3AE2AC06CF3EDA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 6GAVK2Q4AG;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		335D21A72346F724D833B683 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Keyboard/Keyboard.entitlements;
+				INFOPLIST_FILE = Keyboard/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.tinkerstudio.yap.ios.keyboard;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		6AC57B8DB21EA40299676D50 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Yap/Yap.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = Yap/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.tinkerstudio.yap.ios;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		8CAAF6FAC65EFFF4E1A171EC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Yap/Yap.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = Yap/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.tinkerstudio.yap.ios;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C67DF52A9FA585C0124172B6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 6GAVK2Q4AG;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		339899393FC039E060021362 /* Build configuration list for PBXNativeTarget "Yap" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8CAAF6FAC65EFFF4E1A171EC /* Debug */,
+				6AC57B8DB21EA40299676D50 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B0EFA3BC1FEB8FAC74135382 /* Build configuration list for PBXProject "Yap" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C67DF52A9FA585C0124172B6 /* Debug */,
+				2490571A3B3AE2AC06CF3EDA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E2D6739477BA85B1B1A1E01A /* Build configuration list for PBXNativeTarget "YapKeyboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				335D21A72346F724D833B683 /* Debug */,
+				0A3F6D9B2702CD317657A4F3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F956202BF69E3A5F93E816B3 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E4838B14B703BF02085570AE /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F956202BF69E3A5F93E816B3 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 4AE7B800E39E26B51301E986 /* Project object */;
+}

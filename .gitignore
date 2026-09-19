@@ -1,0 +1,25 @@
+.DS_Store
+node_modules
+.env
+.env.*
+!.env.example
+
+# Build output
+/dist
+/build
+/.svelte-kit
+/package
+src-tauri/target/
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Xcode: generated project, derived data and resolved packages
+ios/build/
+ios/Yap.xcodeproj/project.xcworkspace/xcuserdata/
+ios/Yap.xcodeproj/xcuserdata/
+*.xcuserstate
+
+# Firebase CLI noise and anything holding real credentials
+firebase-debug.log
+firestore-debug.log
+.firebase/

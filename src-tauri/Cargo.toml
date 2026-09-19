@@ -1,0 +1,61 @@
+[package]
+name = "yap"
+version = "0.1.0"
+description = "Push-to-talk dictation that still sounds like you"
+authors = ["Tinker Studio"]
+edition = "2021"
+
+[lib]
+# The `_lib` suffix avoids a bin/lib name clash on Windows (rust-lang/cargo#8519)
+name = "yap_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "multipart"] }
+futures-util = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+regex = "1"
+tauri-plugin-dialog = "2"
+
+# Cloud sync: Google sign-in, and encrypting the library before it ever leaves this machine.
+aes-gcm = "0.10"
+argon2 = "0.5"
+base64 = "0.22"
+rand = "0.8"
+sha2 = "0.10"
+
+# Desktop-only: global hotkey, mic capture, clipboard + paste
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-global-shortcut = "2"
+cpal = "0.15"
+arboard = "3"
+enigo = "0.3"
+sherpa-onnx = "1.13.7"
+tar = "0.4"
+bzip2 = "0.6.1"
+
+# Local Whisper (whisper.cpp). Metal on Apple Silicon, CPU elsewhere.
+[target.'cfg(target_os = "macos")'.dependencies]
+whisper-rs = { version = "0.14", features = ["metal"] }
+
+[target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
+whisper-rs = "0.14"
+
+[profile.dev.package."*"]
+# whisper.cpp is unusably slow unoptimized, even in dev builds
+opt-level = 3
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

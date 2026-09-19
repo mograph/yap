@@ -1,0 +1,40 @@
+rules_version = '2';
+
+// Yap stores one encrypted library per person, reached one of two ways.
+//
+//  users/{uid}/library/main  — signed in with Google. Firebase enforces the uid, so only
+//                              that account can reach it.
+//  vaults/{vaultId}          — nobody signed in. The id is Argon2id of the passphrase, so
+//                              knowing an id already means knowing the passphrase, and the
+//                              contents are encrypted under a separate key regardless.
+//
+// Either way the document is ciphertext. Requiring auth keeps both off the open internet and
+// gives Firebase's abuse limits something to bite on.
+service cloud.firestore {
+  function isLibrary(data) {
+    return data.keys().hasOnly(['app', 'v', 'salt', 'nonce', 'blob', 'updatedAt'])
+        && data.app == 'yap'
+        && data.blob is string
+        && data.blob.size() < 2000000;
+  }
+
+  match /databases/{database}/documents {
+    // Signed in: yours and nobody else's, enforced by Firebase.
+    match /users/{uid}/library/{doc} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if request.auth != null && request.auth.uid == uid && isLibrary(request.resource.data);
+    }
+
+    // Passphrase only: 16 bytes of hex, or it wasn't written by Yap.
+    match /vaults/{vaultId} {
+      allow read: if request.auth != null && vaultId.matches('^[0-9a-f]{32}$');
+      allow write: if request.auth != null
+                   && vaultId.matches('^[0-9a-f]{32}$')
+                   && isLibrary(request.resource.data);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
