@@ -58,7 +58,7 @@ Nothing, unless you turn it on:
 |---|---|---|
 | You click **Download** on a model | `huggingface.co` (Whisper models) or `github.com` (k2-fsa/sherpa-onnx releases, everything else) | Nothing; it's a one-time file download |
 | Brain = **Claude** and you've added a key | `api.anthropic.com` | The transcript text + your voice profile. Never audio |
-| Ears = **Cloud** and you've added a key | The endpoint you set (Groq / OpenAI / other) | The audio clip |
+| Ears = **Cloud** and you've added a key | The endpoint you set | The audio clip |
 
 Whisper is an open-source model from OpenAI, but running it locally does **not** call OpenAI. With local Whisper and "Local rules only", Yap is fully offline.
 

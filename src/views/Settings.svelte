@@ -1,7 +1,7 @@
 <script lang="ts">
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { open, save } from "@tauri-apps/plugin-dialog";
-  import { api, type CloudStatus, CLAUDE_MODELS, type Settings } from "../lib/api";
+  import { api, type CloudStatus, CLAUDE_MODELS, type Rule, type Settings } from "../lib/api";
   import { app, debounce } from "../lib/state.svelte";
   import { handsFreeHint } from "../lib/util";
   import Icon from "../components/Icon.svelte";
@@ -26,7 +26,6 @@
     { value: "shortcut", label: "A key combo", cap: "", note: "Pick your own, like ⌥ Space." },
   ];
   const CLOUD_PRESETS = [
-    { name: "Groq", url: "https://api.groq.com/openai/v1/audio/transcriptions", model: "whisper-large-v3-turbo" },
     { name: "OpenAI", url: "https://api.openai.com/v1/audio/transcriptions", model: "gpt-4o-transcribe" },
   ];
 
@@ -36,6 +35,41 @@
   let confirmClear = $state(false);
   let axOk = $state(snap.accessibility);
   let modelError = $state("");
+
+  // The voice profile is edited here as well as on Your voice, so it needs its own saver.
+  const profile = snap.profile;
+  const TONES = [
+    { max: 15, name: "Raw" },
+    { max: 40, name: "Casual" },
+    { max: 65, name: "Relaxed" },
+    { max: 85, name: "Tidy" },
+    { max: 100, name: "Polished" },
+  ];
+  const CASUAL_CAP = 2; // "Relaxed" — casual mode never reads more written than this
+  const tier = $derived.by(() => {
+    const at = TONES.findIndex((t) => profile.tone <= t.max);
+    const i = at === -1 ? TONES.length - 1 : at;
+    return TONES[profile.casual ? Math.min(i, CASUAL_CAP) : i];
+  });
+
+  const persistProfile = debounce(async (value: typeof profile) => {
+    try {
+      await api.saveProfile(value);
+      status = "Saved";
+      setTimeout(() => (status = ""), 1300);
+    } catch (e) {
+      error = String(e);
+    }
+  }, 350);
+  let primedProfile = false;
+  $effect(() => {
+    const value = $state.snapshot(profile);
+    if (!primedProfile) {
+      primedProfile = true;
+      return;
+    }
+    persistProfile(value);
+  });
 
   const persist = debounce(async (value: typeof s) => {
     try {
@@ -103,6 +137,8 @@
   let cloudError = $state("");
   let cloudBusy = $state(false);
   const canSignIn = $derived(!!s.googleClientId.trim() && !!s.googleClientSecret.trim());
+  /// Opened automatically when sign-in is pressed before the client is set up.
+  let firebaseOpen = $state(false);
 
   async function cloudCall(run: () => Promise<unknown>, done: (r: never) => string) {
     cloudBusy = true;
@@ -121,7 +157,18 @@
       () => api.setCloudPassphrase(passphrase),
       (r: CloudStatus) => ((cloud = r), (passphrase = ""), "Passphrase saved. Use the same one everywhere."),
     );
-  const signIn = () => cloudCall(api.cloudSignIn, (r: CloudStatus) => ((cloud = r), `Signed in as ${r.email}`));
+  function signIn() {
+    // A greyed-out button just looks broken. Press it and Yap says what's missing and opens
+    // the place to fix it.
+    if (!canSignIn) {
+      firebaseOpen = true;
+      cloudStatus = "";
+      cloudError =
+        "Google sign-in needs a Desktop OAuth client. Add the client ID and secret below, or use a passphrase instead.";
+      return;
+    }
+    cloudCall(api.cloudSignIn, (r: CloudStatus) => ((cloud = r), `Signed in as ${r.email}`));
+  }
   const usePassphraseOnly = () =>
     cloudCall(api.cloudUsePassphraseOnly, (r: CloudStatus) => ((cloud = r), "Set up with a passphrase. No account needed."));
   const forget = () =>
@@ -249,7 +296,7 @@
       <p class="muted small">This model works out which language you're speaking by itself.</p>
     {/if}
   {:else}
-    <p class="sub">Any OpenAI-compatible transcription API. Groq is very fast and cheap; handy on older machines.</p>
+    <p class="sub">Any OpenAI-compatible transcription API. Handy on older machines, where transcribing on the Mac itself is slow.</p>
     <div class="presets">
       {#each CLOUD_PRESETS as p (p.name)}
         <button class="btn sm" class:on={s.cloudSttUrl === p.url} onclick={() => ((s.cloudSttUrl = p.url), (s.cloudSttModel = p.model))}>{p.name}</button>
@@ -302,24 +349,82 @@
 </section>
 
 <section class="card group">
-  <h2>Behavior</h2>
-  <div class="lists-row">
+  <h2>Lists and formatting</h2>
+  <p class="sub">How much shape Yap gives what you say. Everything here is also on Your voice — same settings, shown together because they work as a set.</p>
+
+  <div class="tone-head">
+    <div>
+      <b>How polished?</b>
+      <span class="muted small">Left keeps it exactly how you talk, right tidies it up.</span>
+    </div>
+    <span class="tier">{tier.name}</span>
+  </div>
+  <input type="range" min="0" max="100" step="1" bind:value={profile.tone} style:--p="{profile.tone}%" aria-label="Tone" />
+  {#if profile.casual && profile.tone > TONES[CASUAL_CAP].max}
+    <p class="capped"><Icon name="alert" size={13} /> Casual mode caps this at {TONES[CASUAL_CAP].name.toLowerCase()}.</p>
+  {/if}
+
+  <div class="perm">
+    <span class="m-text">
+      <b>Casual mode</b>
+      <span class="muted small">Treat every dictation as a message, not a document. Nothing gets turned into bullets or grouped by subject, and it never reads more written than a chat.</span>
+    </span>
+    <Toggle bind:checked={profile.casual} label="Casual" />
+  </div>
+
+  <div class="lists-row" class:off={profile.casual}>
     <span class="m-text">
       <b>When you run through several things</b>
-      <span class="muted small">A bullet list when you run through several things, or your subjects gathered up when you bounce between them.</span>
+      <span class="muted small">
+        {#if profile.casual}
+          Off while casual mode is on.
+        {:else}
+          Say “I'm going to make a list”, “let me do a brain dump”, or just run through a few things, and Yap can offer a tidier version. What you said is never changed unless you take the offer.
+        {/if}
+      </span>
     </span>
     <Segmented
       size="sm"
       label="Lists"
       value={s.lists}
       options={[
-        { value: "ask", label: "Ask me" },
-        { value: "auto", label: "Tidy it up" },
-        { value: "never", label: "Keep as said" },
+        { value: "ask", label: "Offer it" },
+        { value: "auto", label: "Just do it" },
+        { value: "never", label: "Never" },
       ]}
       onchange={(v) => (s.lists = v as Settings["lists"])}
     />
   </div>
+
+  <div class="lists-row">
+    <span class="m-text">
+      <b>Bullets and paragraphs</b>
+      <span class="muted small">Spoken commands like “bullet point”, “new line” and “new paragraph”, and breaking a long ramble into paragraphs.</span>
+    </span>
+    <Segmented
+      size="sm"
+      label="Formatting"
+      value={profile.rules.formatting ?? "do"}
+      options={[
+        { value: "do", label: "Change it" },
+        { value: "suggest", label: "Suggest" },
+        { value: "leave", label: "Leave it" },
+      ]}
+      onchange={(v) => (profile.rules.formatting = v as Rule)}
+    />
+  </div>
+
+  <div class="example">
+    <p class="said"><span class="eyebrow">You say</span>Let me do a brain dump. The login page is broken. The settings need work. I owe Priya an email.</p>
+    <p class="typed"><span class="eyebrow">Yap offers</span>{`Let me do a brain dump:
+- The login page is broken
+- The settings need work
+- I owe Priya an email`}</p>
+  </div>
+</section>
+
+<section class="card group">
+  <h2>Behavior</h2>
   <Toggle bind:checked={s.autoPaste} label="Paste automatically" hint="Otherwise Yap just copies it to your clipboard" />
   <Toggle bind:checked={s.restoreClipboard} label="Put my clipboard back" hint="Restores whatever you had copied after pasting" />
   <Toggle bind:checked={s.sounds} label="Sounds" hint="A soft blip when Yap starts and stops listening" />
@@ -365,78 +470,79 @@
 </section>
 
 <section class="card group">
-  <div class="group-head">
-    <div>
-      <h2>Cloud sync</h2>
-      <p class="sub">Keeps your library in Firebase so it reaches your other computers. It's encrypted here first, with a passphrase that never leaves this machine, so Firebase only ever holds a blob it can't read.</p>
+  <h2>Account</h2>
+  <p class="sub">Only needed to carry your library between computers. Yap works entirely on this Mac without one, and your dictations are encrypted here before they'd ever leave.</p>
+
+  {#if cloud.registered}
+    <div class="perm">
+      <span class="m-text">
+        <b>{cloud.anonymous ? "Set up with a passphrase" : "Signed in with Google"}</b>
+        <span class="muted small">{cloud.anonymous ? "No account. Any computer with the same passphrase finds this library." : cloud.email}</span>
+      </span>
+      <button class="btn ghost sm" onclick={forget} disabled={cloudBusy}>Sign out</button>
     </div>
-    <Toggle bind:checked={s.cloudSync} label="On" />
+  {:else}
+    <div class="choices">
+      <div class="choice">
+        <b>Sign in with Google</b>
+        <span class="muted small">Opens your browser. Your account keeps this library apart from everyone else's. Creates the account if you don't have one.</span>
+        <button class="btn sm" onclick={signIn} disabled={cloudBusy}>
+          <Icon name="key" size={14} />Sign in with Google
+        </button>
+      </div>
+      <div class="choice">
+        <b>Just a passphrase</b>
+        <span class="muted small">No account, nothing to sign in to. Any computer with the same passphrase finds the same library.</span>
+        <button class="btn sm" onclick={usePassphraseOnly} disabled={cloudBusy}>Use a passphrase</button>
+      </div>
+    </div>
+  {/if}
+
+  <label class="label" for="pass">Passphrase {cloud.hasPassphrase ? "(set)" : ""}</label>
+  <div class="key-row">
+    <input
+      id="pass"
+      class="field"
+      type={showPass ? "text" : "password"}
+      placeholder={cloud.hasPassphrase ? "Saved on this computer" : `At least ${cloud.minPassphrase} characters`}
+      bind:value={passphrase}
+      autocomplete="off"
+      spellcheck="false"
+    />
+    <button class="btn sm" onclick={() => (showPass = !showPass)}>{showPass ? "Hide" : "Show"}</button>
+    <button class="btn sm" onclick={savePassphrase} disabled={cloudBusy || !passphrase.trim()}>Save</button>
+  </div>
+  <p class="muted small">
+    Your library is encrypted with this before it leaves. Use the same passphrase on every computer, or they won't be able to read each other. There's no recovery: lose it and the cloud copy can't be opened, though everything here is untouched.
+  </p>
+
+  <div class="perm">
+    <span class="m-text">
+      <b>Keep my library in the cloud</b>
+      <span class="muted small">Syncs your profile and history to your other computers after every dictation.</span>
+    </span>
+    <Toggle bind:checked={s.cloudSync} label="Sync" />
   </div>
 
-  {#if s.cloudSync}
-    {#if !cloud.registered}
-      <p class="label">How do you want this computer set up?</p>
-      <div class="choices">
-        <div class="choice">
-          <b>Just a passphrase</b>
-          <span class="muted small">No account, nothing to sign in to. Any computer with the same passphrase finds the same library.</span>
-          <button class="btn sm" onclick={usePassphraseOnly} disabled={cloudBusy}>Use a passphrase</button>
-        </div>
-        <div class="choice">
-          <b>Sign in with Google</b>
-          <span class="muted small">Your account keeps your library apart from everyone else's, so a weak passphrase can't expose it. Needs a Desktop OAuth client below.</span>
-          <button class="btn sm" onclick={signIn} disabled={cloudBusy || !canSignIn}>Sign in with Google</button>
-          {#if !canSignIn}<span class="muted small">Add a client ID and secret under Firebase details first.</span>{/if}
-        </div>
-      </div>
-    {:else}
-      <div class="perm">
-        <span class="m-text">
-          <b>{cloud.anonymous ? "Passphrase only" : "Signed in"}</b>
-          <span class="muted small">{cloud.anonymous ? "This computer is registered without an account." : cloud.email}</span>
-        </span>
-        <button class="btn ghost sm" onclick={forget} disabled={cloudBusy}>Forget this computer</button>
-      </div>
-    {/if}
+  <div class="lib-actions">
+    <button class="btn sm" onclick={syncNow} disabled={cloudBusy || !cloud.registered || !cloud.hasPassphrase}>
+      <Icon name="refresh" size={14} />Sync now
+    </button>
+    {#if cloudStatus}<span class="muted small">{cloudStatus}</span>{/if}
+    {#if cloudError}<span class="small err">{cloudError}</span>{/if}
+  </div>
 
-    <label class="label" for="pass">Passphrase {cloud.hasPassphrase ? "(set)" : ""}</label>
-    <div class="key-row">
-      <input
-        id="pass"
-        class="field"
-        type={showPass ? "text" : "password"}
-        placeholder={cloud.hasPassphrase ? "Saved on this computer" : `At least ${cloud.minPassphrase} characters`}
-        bind:value={passphrase}
-        autocomplete="off"
-        spellcheck="false"
-      />
-      <button class="btn sm" onclick={() => (showPass = !showPass)}>{showPass ? "Hide" : "Show"}</button>
-      <button class="btn sm" onclick={savePassphrase} disabled={cloudBusy || !passphrase.trim()}>Save</button>
-    </div>
-    <p class="muted small">
-      Your library is encrypted with this before it leaves. Use the same passphrase on every computer, or they won't be able to read each other. There's no way to recover it: lose it and the cloud copy can't be opened, though everything here is untouched.
-    </p>
-
-    <div class="lib-actions">
-      <button class="btn sm" onclick={syncNow} disabled={cloudBusy || !cloud.registered || !cloud.hasPassphrase}>
-        <Icon name="refresh" size={14} />Sync now
-      </button>
-      {#if cloudStatus}<span class="muted small">{cloudStatus}</span>{/if}
-      {#if cloudError}<span class="small err">{cloudError}</span>{/if}
-    </div>
-
-    <details class="setup">
-      <summary>Firebase details</summary>
-      <label class="label" for="fb-proj">Project ID</label>
-      <input id="fb-proj" class="field" bind:value={s.firebaseProjectId} autocomplete="off" spellcheck="false" />
-      <label class="label" for="fb-key">Web API key</label>
-      <input id="fb-key" class="field" bind:value={s.firebaseApiKey} autocomplete="off" spellcheck="false" />
-      <label class="label" for="g-id">Google client ID (Desktop app) — only to sign in</label>
-      <input id="g-id" class="field" bind:value={s.googleClientId} autocomplete="off" spellcheck="false" />
-      <label class="label" for="g-secret">Google client secret</label>
-      <input id="g-secret" class="field" type="password" bind:value={s.googleClientSecret} autocomplete="off" spellcheck="false" />
-    </details>
-  {/if}
+  <details class="setup" bind:open={firebaseOpen}>
+    <summary>Firebase details</summary>
+    <label class="label" for="fb-proj">Project ID</label>
+    <input id="fb-proj" class="field" bind:value={s.firebaseProjectId} autocomplete="off" spellcheck="false" />
+    <label class="label" for="fb-key">Web API key</label>
+    <input id="fb-key" class="field" bind:value={s.firebaseApiKey} autocomplete="off" spellcheck="false" />
+    <label class="label" for="g-id">Google client ID (Desktop app) — only to sign in</label>
+    <input id="g-id" class="field" bind:value={s.googleClientId} autocomplete="off" spellcheck="false" />
+    <label class="label" for="g-secret">Google client secret</label>
+    <input id="g-secret" class="field" type="password" bind:value={s.googleClientSecret} autocomplete="off" spellcheck="false" />
+  </details>
 </section>
 
 <section class="card group">
@@ -487,6 +593,21 @@
   .perm { display: flex; align-items: center; gap: 14px; }
   .lists-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
   .err { color: var(--bad); }
+  .tone-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; padding: 13px 0 10px; }
+  .tier {
+    flex: none;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-2);
+    font-weight: 650;
+    font-size: 12px;
+  }
+  .capped { display: flex; align-items: center; gap: 7px; margin: 8px 0 0; font-size: 12.5px; color: var(--warn); }
+  .lists-row.off { opacity: 0.55; }
+  .example { display: grid; gap: 10px; margin-top: 14px; padding: 13px 14px; border-radius: 12px; background: var(--card-2); }
+  .example p { margin: 0; font-size: 13.5px; line-height: 1.6; white-space: pre-line; }
+  .example .eyebrow { display: block; font-size: 10.5px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 3px; }
   .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 4px 0 6px; }
   .choice {
     display: grid;

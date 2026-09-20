@@ -248,6 +248,38 @@ fn a_guessable_passphrase_is_refused() {
 }
 
 #[test]
+fn a_spoken_brain_dump_becomes_tasks() {
+    // "I want to do a brain dump" and then one thing per sentence: each thing is its own task,
+    // and the announcement is the lead-in rather than the first task.
+    assert_eq!(
+        polish::as_list("Okay I want to do a brain dump. I need to fix the login bug. The settings page needs work. I should email Priya back. And the deploy is still failing."),
+        concat!(
+            "Okay I want to do a brain dump:\n",
+            "- I need to fix the login bug\n",
+            "- The settings page needs work\n",
+            "- I should email Priya back\n",
+            "- The deploy is still failing"
+        )
+    );
+    assert_eq!(
+        polish::as_list("Let me do a brain dump real quick. The onboarding copy is too long. We never shipped the empty states. Sam still owes me the icons."),
+        concat!(
+            "Let me do a brain dump real quick:\n",
+            "- The onboarding copy is too long\n",
+            "- We never shipped the empty states\n",
+            "- Sam still owes me the icons"
+        )
+    );
+    // Said as a run-on instead of separate sentences, it still comes out as tasks.
+    assert_eq!(
+        polish::as_list("Brain dump: fix the login bug, ship the icons, and email Priya"),
+        "Brain dump:\n- Fix the login bug\n- Ship the icons\n- Email Priya"
+    );
+    // Talking *about* a brain dump isn't asking for one.
+    assert_eq!(polish::as_list("The brain dump I sent you yesterday was way too long honestly."), "");
+}
+
+#[test]
 fn library_import_adds_and_never_removes() {
     let mut mine = Profile::default();
     let mut theirs = Profile::default();

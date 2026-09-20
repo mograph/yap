@@ -84,7 +84,7 @@ impl Default for Settings {
             stt_engine: "local".into(),
             local_model: "large-v3-turbo-q5_0".into(),
             language: "auto".into(),
-            cloud_stt_url: "https://api.groq.com/openai/v1/audio/transcriptions".into(),
+            cloud_stt_url: "https://api.openai.com/v1/audio/transcriptions".into(),
             cloud_stt_model: "whisper-large-v3-turbo".into(),
             cloud_stt_key: String::new(),
             brain: "claude".into(),

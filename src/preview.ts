@@ -124,7 +124,7 @@ const snapshot: Snapshot = {
     sttEngine: "local",
     localModel: "large-v3-turbo-q5_0",
     language: "auto",
-    cloudSttUrl: "https://api.groq.com/openai/v1/audio/transcriptions",
+    cloudSttUrl: "https://api.openai.com/v1/audio/transcriptions",
     cloudSttModel: "whisper-large-v3-turbo",
     cloudSttKey: "",
     brain: "claude",
