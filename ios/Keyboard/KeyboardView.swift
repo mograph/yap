@@ -91,13 +91,13 @@ struct KeyboardView: View {
     private var fullAccessHint: some View {
         VStack(spacing: 8) {
             Image(systemName: "hand.raised.fill").font(.title2).foregroundStyle(Theme.accent)
-            Text("Yap needs Full Access to hear you")
+            Text("Moonshot needs Full Access to hear you")
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
-            Text("Settings → General → Keyboard → Keyboards → Yap → Allow Full Access")
+            Text("Settings → General → Keyboard → Keyboards → Moonshot → Allow Full Access")
                 .font(.system(size: 12.5, design: .rounded))
                 .foregroundStyle(Theme.ink2)
                 .multilineTextAlignment(.center)
-            Button("Open Yap for help", action: onOpenApp)
+            Button("Open Moonshot for help", action: onOpenApp)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.accent)
         }

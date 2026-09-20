@@ -64,7 +64,7 @@ struct VoiceView: View {
                         .padding(.vertical, 4)
                     }
                 } header: {
-                    Text("What Yap can change")
+                    Text("What Moonshot can change")
                 } footer: {
                     Text("Suggestions show up under “What changed” without touching your text.")
                 }
@@ -82,7 +82,7 @@ struct VoiceView: View {
                 } header: {
                     Text("Words that are mine")
                 } footer: {
-                    Text("Slang and spellings Yap never “fixes”.")
+                    Text("Slang and spellings Moonshot never “fixes”.")
                 }
 
                 Section {
@@ -102,7 +102,7 @@ struct VoiceView: View {
                 }
 
                 Section("About how you talk") {
-                    TextField("What should Yap call you?", text: $engine.profile.name)
+                    TextField("What should Moonshot call you?", text: $engine.profile.name)
                     TextField("I never capitalize in texts, I say “like” a lot…", text: $engine.profile.notes, axis: .vertical)
                         .lineLimit(3...8)
                 }

@@ -21,13 +21,13 @@ struct SettingsView: View {
                     NavigationLink {
                         KeyboardSetupView()
                     } label: {
-                        Label("Set up the Yap keyboard", systemImage: "keyboard")
+                        Label("Set up the Moonshot keyboard", systemImage: "keyboard")
                     }
                     if engine.sessionLive {
                         Button("Turn off the mic now", systemImage: "mic.slash", role: .destructive) { engine.endSession() }
                     }
                 } footer: {
-                    Text("After you use the keyboard, the mic stays ready for 5 minutes so you don't have to jump to Yap again.")
+                    Text("After you use the keyboard, the mic stays ready for 5 minutes so you don't have to jump to Moonshot again.")
                 }
 
                 Section {

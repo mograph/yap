@@ -26,7 +26,7 @@ enum Bridge {
 
     static var state: String { defaults.string(forKey: Key.state) ?? "idle" }
 
-    private static let prefix = "io.tinkerstudio.yap."
+    private static let prefix = "io.tinkerstudio.moonshot."
     private static var handlers: [String: () -> Void] = [:]
 
     static func post(_ name: String) {

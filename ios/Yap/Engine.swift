@@ -57,7 +57,7 @@ final class Engine: ObservableObject {
 
     // MARK: keyboard session
 
-    /// yap://dictate from the keyboard's mic button: start the mic and listen right away.
+    /// moonshot://dictate from the keyboard's mic button: start the mic and listen right away.
     func openedFromKeyboard() {
         startSession()
         fromKeyboard = true

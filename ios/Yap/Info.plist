@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Yap</string>
+	<string>Moonshot</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -22,10 +22,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>io.tinkerstudio.yap</string>
+			<string>io.tinkerstudio.moonshot</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>yap</string>
+				<string>moonshot</string>
 			</array>
 		</dict>
 	</array>
@@ -34,7 +34,7 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Yap listens while you talk so it can type what you say.</string>
+	<string>Moonshot listens while you talk so it can type what you say.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

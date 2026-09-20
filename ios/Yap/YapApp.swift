@@ -11,7 +11,7 @@ struct YapApp: App {
                 .tint(Theme.accent)
                 .task { await engine.runLaunchTest() }
                 .onOpenURL { url in
-                    // yap://dictate comes from the keyboard's mic button.
+                    // moonshot://dictate comes from the keyboard's mic button.
                     if url.host == "dictate" { engine.openedFromKeyboard() }
                 }
         }

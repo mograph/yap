@@ -316,7 +316,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = io.tinkerstudio.yap.ios.keyboard;
+				PRODUCT_BUNDLE_IDENTIFIER = io.tinkerstudio.moonshot.ios.keyboard;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -393,7 +393,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = io.tinkerstudio.yap.ios.keyboard;
+				PRODUCT_BUNDLE_IDENTIFIER = io.tinkerstudio.moonshot.ios.keyboard;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -411,7 +411,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = io.tinkerstudio.yap.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = io.tinkerstudio.moonshot.ios;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -429,7 +429,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = io.tinkerstudio.yap.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = io.tinkerstudio.moonshot.ios;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

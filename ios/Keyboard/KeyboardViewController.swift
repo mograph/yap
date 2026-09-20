@@ -10,7 +10,7 @@ final class KeyboardModel: ObservableObject {
     @Published var showsGlobe = true
 }
 
-/// The Yap keyboard. It can't use the microphone itself, so it asks the Yap app to listen and
+/// The Moonshot keyboard. It can't use the microphone itself, so it asks the Moonshot app to listen and
 /// types whatever comes back.
 final class KeyboardViewController: UIInputViewController {
     private let model = KeyboardModel()
@@ -29,7 +29,7 @@ final class KeyboardViewController: UIInputViewController {
                 guard let self, !self.model.lastResult.isEmpty else { return }
                 self.textDocumentProxy.insertText(self.model.lastResult)
             },
-            onOpenApp: { [weak self] in self?.open(URL(string: "yap://")!) })
+            onOpenApp: { [weak self] in self?.open(URL(string: "moonshot://")!) })
         let host = UIHostingController(rootView: root)
         host.view.backgroundColor = .clear
         addChild(host)
@@ -72,7 +72,7 @@ final class KeyboardViewController: UIInputViewController {
         case "listening": model.status = "Listening… tap ■ when you're done"
         case "thinking": model.status = defaults.string(forKey: Bridge.Key.message) ?? "Thinking…"
         case "error": model.status = defaults.string(forKey: Bridge.Key.message) ?? "Something went wrong"
-        default: model.status = alive ? "Tap to talk" : "Tap the mic to wake up Yap"
+        default: model.status = alive ? "Tap to talk" : "Tap the mic to wake up Moonshot"
         }
         // A keyboard dictation finished: type it, once.
         if defaults.bool(forKey: Bridge.Key.pending), let text = defaults.string(forKey: Bridge.Key.result), !text.isEmpty {
@@ -92,8 +92,8 @@ final class KeyboardViewController: UIInputViewController {
         } else {
             // The app has to be in front to turn the mic on. It starts listening right away;
             // come back here and tap ■ when you're done.
-            model.status = "Opening Yap…"
-            open(URL(string: "yap://dictate")!)
+            model.status = "Opening Moonshot…"
+            open(URL(string: "moonshot://dictate")!)
         }
     }
 

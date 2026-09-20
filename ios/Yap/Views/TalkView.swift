@@ -128,7 +128,7 @@ struct TalkView: View {
         let status = engine.transcriber.status[model.id] ?? .notDownloaded
         return VStack(alignment: .leading, spacing: 10) {
             Text("Download \(model.label)").font(.system(.headline, design: .rounded))
-            Text("Runs right on your iPhone. Free, private, works offline. \(model.sizeMB) MB, one time. Keep Yap open while it downloads.")
+            Text("Runs right on your iPhone. Free, private, works offline. \(model.sizeMB) MB, one time. Keep Moonshot open while it downloads.")
                 .font(.subheadline).foregroundStyle(Theme.ink2)
             switch status {
             case .downloading(let fraction):
@@ -161,7 +161,7 @@ struct TalkView: View {
             Image(systemName: "keyboard.fill").foregroundStyle(Theme.accent)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Listening for your keyboard").font(.system(.subheadline, design: .rounded).weight(.semibold))
-                Text("Go back to your app (tap ◀ in the top-left corner), keep talking, then tap ■ on the Yap keyboard. Yap stays ready for 5 minutes.")
+                Text("Go back to your app (tap ◀ in the top-left corner), keep talking, then tap ■ on the Moonshot keyboard. Moonshot stays ready for 5 minutes.")
                     .font(.footnote).foregroundStyle(Theme.ink2)
             }
         }
@@ -172,7 +172,7 @@ struct TalkView: View {
     private var emptyState: some View {
         VStack(spacing: 8) {
             Text("Nothing yet. Say something.").font(.system(.headline, design: .rounded))
-            Text("Everything you dictate shows up here, with exactly what Yap changed.")
+            Text("Everything you dictate shows up here, with exactly what Moonshot changed.")
                 .font(.subheadline).foregroundStyle(Theme.ink2).multilineTextAlignment(.center)
         }
         .padding(.top, 20)

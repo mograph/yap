@@ -3,7 +3,7 @@ import Foundation
 /// Settings, voice profile and history, shared by the app and the keyboard through the App Group.
 /// The JSON matches the Mac app's files so they can sync later.
 enum Store {
-    static let group = "group.io.tinkerstudio.yap"
+    static let group = "group.io.tinkerstudio.moonshot"
 
     static var folder: URL {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)
