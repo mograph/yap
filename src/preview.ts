@@ -117,10 +117,13 @@ for (let i = 0; i < 46; i++) {
 }
 history.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 
+/** `?platform=windows` previews the Windows build's talk keys and permission copy. */
+const platform = params.get("platform") ?? "macos";
+
 const snapshot: Snapshot = {
   settings: {
-    trigger: "option",
-    shortcut: "Alt+Space",
+    trigger: platform === "macos" ? "option" : "right-ctrl",
+    shortcut: platform === "macos" ? "Alt+Space" : "Ctrl+Shift+Space",
     sttEngine: "local",
     localModel: "large-v3-turbo-q5_0",
     language: "auto",
@@ -167,7 +170,7 @@ const snapshot: Snapshot = {
     { id: "small.en", label: "Whisper Small · English", maker: "OpenAI (open source)", languages: "English", group: "Small & light", sizeMb: 488, note: "Middle ground for older machines.", badge: "", link: "https://huggingface.co/openai/whisper-small.en", languageMode: "auto", usesVocabulary: true, installed: false },
     { id: "base.en", label: "Whisper Base · English", maker: "OpenAI (open source)", languages: "English", group: "Small & light", sizeMb: 148, note: "Tiny and quick, less accurate.", badge: "", link: "https://huggingface.co/openai/whisper-base.en", languageMode: "auto", usesVocabulary: true, installed: false },
   ],
-  platform: "macos",
+  platform,
   accessibility: true,
   envKey: false,
 };

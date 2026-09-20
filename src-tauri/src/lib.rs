@@ -5,7 +5,7 @@ mod store;
 mod stt;
 #[cfg(desktop)]
 mod audio;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 mod modkey;
 #[cfg(desktop)]
 mod paste;
@@ -538,7 +538,11 @@ async fn pipeline(app: &AppHandle, paste: bool) -> Result<Option<(Dictation, Str
         .await
         .map_err(|e| e.to_string())?;
     let audio_secs = samples.len() as f32 / audio::RATE as f32;
-    if audio_secs < 0.3 || audio::rms(&samples) < 0.002 {
+    let level = audio::rms(&samples);
+    if audio_secs < 0.3 || level < 0.002 {
+        // Worth saying out loud: "Didn't catch that" looks the same whether the mic was
+        // muted, the talk key was tapped by accident, or you really did trail off.
+        eprintln!("yap: nothing to transcribe — {audio_secs:.2}s of audio, level {level:.5}");
         return Ok(None);
     }
 
@@ -548,8 +552,11 @@ async fn pipeline(app: &AppHandle, paste: bool) -> Result<Option<(Dictation, Str
     let raw = transcribe(app, &settings, &profile, samples).await?;
     let stt_ms = started.elapsed().as_millis() as u64;
     if raw.is_empty() {
+        eprintln!("yap: the model heard {audio_secs:.2}s at level {level:.5} but returned no words");
         return Ok(None);
     }
+    // Length and timing only. What you said is yours; it doesn't go in a log.
+    eprintln!("yap: transcribed {audio_secs:.2}s of audio in {stt_ms}ms, {} characters", raw.chars().count());
 
     emit_phase(app, "thinking", "Making it sound like you…", 0, false);
     let mut d = polish::run(&settings, &profile, &raw).await;
@@ -568,6 +575,11 @@ async fn pipeline(app: &AppHandle, paste: bool) -> Result<Option<(Dictation, Str
         d.words = store::word_count(&d.text);
     }
 
+    // Recorded before it's pasted: pasting is the step that can fail, and losing what you
+    // said because it couldn't reach another app would be the worst way to fail.
+    record(app, &d)?;
+
+    let manual = if cfg!(target_os = "macos") { "On your clipboard · ⌘V to paste" } else { "On your clipboard · Ctrl+V to paste" };
     let mut msg = if !paste {
         "Done".to_string()
     } else if settings.auto_paste {
@@ -575,15 +587,14 @@ async fn pipeline(app: &AppHandle, paste: bool) -> Result<Option<(Dictation, Str
         let pasted = tauri::async_runtime::spawn_blocking(move || paste::paste(&handle, &text, restore))
             .await
             .map_err(|e| e.to_string())??;
-        if pasted { "Pasted" } else { "On your clipboard · ⌘V to paste" }.to_string()
+        if pasted { "Pasted" } else { manual }.to_string()
     } else {
         paste::copy(&d.text)?;
-        "On your clipboard · ⌘V to paste".to_string()
+        manual.to_string()
     };
     if !d.note.is_empty() {
         msg += " · local cleanup";
     }
-    record(app, &d)?;
     Ok(Some((d, msg)))
 }
 
@@ -675,10 +686,16 @@ fn get_settings(state: State<'_, AppState>) -> Settings {
     state.settings.lock().unwrap().clone()
 }
 
-/// The key combo to register, if the talk key is a combo at all.
+/// The key combo to register, if the talk key is a combo at all. A bare modifier this
+/// platform can't watch (a Mac's Option key in a settings file opened on Windows) falls
+/// back to the combo, so there's always some way to talk.
 #[cfg(desktop)]
 fn combo(settings: &Settings) -> Option<&str> {
-    (settings.trigger == "shortcut").then_some(settings.shortcut.as_str())
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    let bare = modkey::watchable(&settings.trigger);
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let bare = false;
+    (!bare).then_some(settings.shortcut.as_str())
 }
 
 #[tauri::command]
@@ -928,7 +945,7 @@ pub fn run() {
                         eprintln!("yap: {e}");
                     }
                 }
-                #[cfg(target_os = "macos")]
+                #[cfg(any(target_os = "macos", target_os = "windows"))]
                 modkey::watch(handle.clone());
                 if engine == "local" {
                     preload(handle, &model);

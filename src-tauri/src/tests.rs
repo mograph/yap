@@ -446,3 +446,66 @@ fn compare_models() {
     }
     assert!(ran > 0, "no models found under {}/models", data.display());
 }
+
+/// Lists every microphone and records a few seconds from one, so you can tell whether the
+/// mic Yap would use is the one you're talking into. Yap records from the system default,
+/// and a machine with a webcam, a headset and a capture card has several to choose from.
+///
+/// cargo test mic_check -- --ignored --nocapture
+/// YAP_TEST_MIC=<part of a device name> picks a different one.
+#[test]
+#[ignore]
+fn mic_check() {
+    use cpal::traits::{DeviceTrait, HostTrait};
+
+    let host = cpal::default_host();
+    let default = host.default_input_device().and_then(|d| d.name().ok()).unwrap_or_default();
+    println!("\ninput devices (* is the one Yap would use):");
+    let devices: Vec<_> = host.input_devices().expect("no input devices").collect();
+    for device in &devices {
+        let name = device.name().unwrap_or_default();
+        let mark = if name == default { "*" } else { " " };
+        let rate = device.default_input_config().map(|c| format!("{} Hz, {} ch", c.sample_rate().0, c.channels()));
+        println!("  {mark} {name}  [{}]", rate.unwrap_or_else(|e| e.to_string()));
+    }
+
+    let wanted = std::env::var("YAP_TEST_MIC").unwrap_or_default();
+    let device = if wanted.is_empty() {
+        host.default_input_device().expect("no default input device")
+    } else {
+        devices
+            .into_iter()
+            .find(|d| d.name().unwrap_or_default().to_lowercase().contains(&wanted.to_lowercase()))
+            .unwrap_or_else(|| panic!("no input device matching {wanted:?}"))
+    };
+    let name = device.name().unwrap_or_default();
+    let supported = device.default_input_config().expect("no default config");
+    let rate = supported.sample_rate().0;
+    let channels = supported.channels() as usize;
+
+    let buf = std::sync::Arc::new(std::sync::Mutex::new(Vec::<f32>::new()));
+    let sink = buf.clone();
+    let stream = device
+        .build_input_stream(
+            &supported.config(),
+            move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                let mut b = sink.lock().unwrap();
+                b.extend(data.chunks(channels).map(|f| f.iter().sum::<f32>() / channels as f32));
+            },
+            |e| eprintln!("mic error: {e}"),
+            None,
+        )
+        .expect("couldn't open the microphone");
+    cpal::traits::StreamTrait::play(&stream).expect("couldn't start the microphone");
+
+    println!("\nrecording 5 s from {name:?} — say something…");
+    std::thread::sleep(std::time::Duration::from_secs(5));
+    drop(stream);
+
+    let samples = crate::audio::resample(&buf.lock().unwrap(), rate);
+    let level = crate::audio::rms(&samples);
+    let peak = samples.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+    println!("  {:.1} s of audio at 16 kHz, rms {level:.5}, peak {peak:.5}", samples.len() as f32 / 16_000.0);
+    // Yap throws away anything quieter than this rather than transcribe silence.
+    println!("  {}", if level < 0.002 { "TOO QUIET — Yap would say \"Didn't catch that\"" } else { "loud enough for Yap" });
+}

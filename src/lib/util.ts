@@ -21,19 +21,28 @@ export function keycaps(shortcut: string, platform: string): string[] {
   });
 }
 
-/** The key(s) you hold to talk, as keycaps. */
-export function talkKey(s: { trigger: string; shortcut: string }, platform: string): string[] {
-  if (platform === "macos") {
-    if (s.trigger === "option") return ["⌥"];
-    if (s.trigger === "right-option") return ["right ⌥"];
-    if (s.trigger === "fn") return ["fn"];
-  }
-  return keycaps(s.shortcut, platform);
+/** The bare modifier keys you can hold to talk, per platform, as the keycap to show.
+ *  Anything else is a key combo. */
+const BARE: Record<string, Record<string, string>> = {
+  macos: { "option": "⌥", "right-option": "right ⌥", "fn": "fn" },
+  windows: { "right-ctrl": "right Ctrl", "right-alt": "right Alt", "ctrl": "Ctrl", "alt": "Alt" },
+};
+
+/** The keycap for a bare modifier talk key, or undefined when it's a combo. */
+export function bareKey(trigger: string, platform: string): string | undefined {
+  return BARE[platform]?.[trigger];
 }
 
-/** How hands-free works for the current talk key. */
+/** The key(s) you hold to talk, as keycaps. */
+export function talkKey(s: { trigger: string; shortcut: string }, platform: string): string[] {
+  const bare = bareKey(s.trigger, platform);
+  return bare ? [bare] : keycaps(s.shortcut, platform);
+}
+
+/** How hands-free works for the current talk key. A combo can tell a tap from a hold on
+ *  its own; a bare modifier needs a double-tap, so it doesn't fire while you use the key. */
 export function handsFreeHint(s: { trigger: string }, platform: string) {
-  return platform === "macos" && s.trigger !== "shortcut" ? "Double-tap for hands-free" : "Tap once for hands-free";
+  return bareKey(s.trigger, platform) ? "Double-tap for hands-free" : "Tap once for hands-free";
 }
 
 /** Is this tidier version a bullet list, or their subjects gathered into paragraphs? */

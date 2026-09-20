@@ -63,7 +63,9 @@
 </script>
 
 {#if snap}
-  <div class="shell">
+  <!-- Only macOS hides its title bar, so only there does the window need its own drag
+       strip and room at the top for the traffic lights. -->
+  <div class="shell" class:native-chrome={snap.platform !== "macos"}>
     <div class="drag" data-tauri-drag-region></div>
     <aside class="side">
       <div class="brand">
@@ -120,6 +122,8 @@
 <style>
   .shell { display: grid; grid-template-columns: 236px 1fr; height: 100vh; }
   .drag { position: fixed; top: 0; left: 0; right: 0; height: 38px; z-index: 5; }
+  .shell.native-chrome .drag { display: none; }
+  .shell.native-chrome .side { padding-top: 16px; }
 
   .side {
     background: var(--sidebar);

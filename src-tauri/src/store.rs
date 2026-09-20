@@ -41,7 +41,8 @@ impl Rule {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
-    /// What you hold to talk: "option", "right-option", "fn" (macOS), or "shortcut" (the combo below)
+    /// What you hold to talk: "option", "right-option", "fn" (macOS), "right-ctrl",
+    /// "right-alt", "ctrl", "alt" (Windows), or "shortcut" (the combo below)
     pub trigger: String,
     pub shortcut: String,
     /// "local" (a model on this machine) or "cloud" (any OpenAI-compatible transcription API)
@@ -79,7 +80,14 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            trigger: if cfg!(target_os = "macos") { "option" } else { "shortcut" }.into(),
+            // Right Ctrl is the one bare modifier Windows apps don't already react to on
+            // its own: holding Alt opens menu bars, and Ctrl alone is used for zoom gestures.
+            trigger: match std::env::consts::OS {
+                "macos" => "option",
+                "windows" => "right-ctrl",
+                _ => "shortcut",
+            }
+            .into(),
             shortcut: if cfg!(target_os = "macos") { "Alt+Space" } else { "Ctrl+Shift+Space" }.into(),
             stt_engine: "local".into(),
             local_model: "large-v3-turbo-q5_0".into(),

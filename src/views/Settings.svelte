@@ -19,12 +19,22 @@
     ["it", "Italian"], ["pt", "Portuguese"], ["nl", "Dutch"], ["pl", "Polish"], ["tr", "Turkish"], ["ru", "Russian"],
     ["ja", "Japanese"], ["ko", "Korean"], ["zh", "Chinese"], ["hi", "Hindi"], ["ar", "Arabic"], ["vi", "Vietnamese"], ["tl", "Tagalog"],
   ];
-  const TRIGGERS = [
-    { value: "option", label: "Option key", cap: "⌥", note: "Either side. Yap stays out of the way when you use Option in a shortcut or a click." },
-    { value: "right-option", label: "Right Option only", cap: "right ⌥", note: "Keeps left Option free for typing symbols and shortcuts." },
-    { value: "fn", label: "fn / 🌐 key", cap: "fn", note: "Like Typeless. First set “Press 🌐 key to” → Do Nothing in System Settings → Keyboard." },
-    { value: "shortcut", label: "A key combo", cap: "", note: "Pick your own, like ⌥ Space." },
-  ];
+  const TRIGGERS: Record<string, { value: string; label: string; cap: string; note: string }[]> = {
+    macos: [
+      { value: "option", label: "Option key", cap: "⌥", note: "Either side. Yap stays out of the way when you use Option in a shortcut or a click." },
+      { value: "right-option", label: "Right Option only", cap: "right ⌥", note: "Keeps left Option free for typing symbols and shortcuts." },
+      { value: "fn", label: "fn / 🌐 key", cap: "fn", note: "Like Typeless. First set “Press 🌐 key to” → Do Nothing in System Settings → Keyboard." },
+      { value: "shortcut", label: "A key combo", cap: "", note: "Pick your own, like ⌥ Space." },
+    ],
+    windows: [
+      { value: "right-ctrl", label: "Right Ctrl", cap: "right Ctrl", note: "The modifier Windows apps leave alone on its own. Left Ctrl stays free for shortcuts." },
+      { value: "right-alt", label: "Right Alt", cap: "right Alt", note: "For layouts without AltGr. Where right Alt types accented characters, Yap stays out of the way." },
+      { value: "ctrl", label: "Ctrl key", cap: "Ctrl", note: "Either side. Yap stays out of the way when you use Ctrl in a shortcut or a click." },
+      { value: "alt", label: "Alt key", cap: "Alt", note: "Either side. On its own, Alt also opens the menu bar in a lot of apps." },
+      { value: "shortcut", label: "A key combo", cap: "", note: "Pick your own, like Ctrl Shift Space." },
+    ],
+  };
+  const triggers = TRIGGERS[snap.platform] ?? [];
   const CLOUD_PRESETS = [
     { name: "Groq", url: "https://api.groq.com/openai/v1/audio/transcriptions", model: "whisper-large-v3-turbo" },
     { name: "OpenAI", url: "https://api.openai.com/v1/audio/transcriptions", model: "gpt-4o-transcribe" },
@@ -190,9 +200,9 @@
   <p class="sub">
     Hold it to talk and let go to finish. {handsFreeHint(s, snap.platform)}, then tap again to finish. Esc cancels.
   </p>
-  {#if mac}
+  {#if triggers.length}
     <div class="models">
-      {#each TRIGGERS as t (t.value)}
+      {#each triggers as t (t.value)}
         <label class="model" class:selected={s.trigger === t.value}>
           <input type="radio" name="trigger" value={t.value} bind:group={s.trigger} />
           <span class="m-text"><b>{t.label}</b><span class="muted small">{t.note}</span></span>
@@ -201,7 +211,7 @@
       {/each}
     </div>
   {/if}
-  {#if !mac || s.trigger === "shortcut"}
+  {#if !triggers.length || s.trigger === "shortcut"}
     <ShortcutRecorder value={s.shortcut} platform={snap.platform} onchange={setShortcut} />
   {/if}
 </section>

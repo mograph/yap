@@ -38,16 +38,29 @@ tauri-plugin-global-shortcut = "2"
 cpal = "0.15"
 arboard = "3"
 enigo = "0.3"
-sherpa-onnx = "1.13.7"
 tar = "0.4"
 bzip2 = "0.6.1"
 
-# Local Whisper (whisper.cpp). Metal on Apple Silicon, CPU elsewhere.
+# sherpa-onnx everywhere but Windows links its prebuilt static libraries, which carry the
+# C++ runtime inside them. whisper.cpp builds against the dynamic runtime, and MSVC refuses
+# to link both into one binary. The shared build keeps its runtime inside its own DLLs, so
+# only import stubs reach our link. The DLLs ship next to Yap.exe.
+[target.'cfg(all(not(any(target_os = "android", target_os = "ios")), not(target_os = "windows")))'.dependencies]
+sherpa-onnx = "1.13.7"
+
+# Local Whisper (whisper.cpp). Metal on Apple Silicon, Vulkan on Windows, CPU elsewhere.
 [target.'cfg(target_os = "macos")'.dependencies]
 whisper-rs = { version = "0.14", features = ["metal"] }
 
-[target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 whisper-rs = "0.14"
+
+# Windows gets Vulkan the way macOS gets Metal: whisper.cpp on the GPU. Vulkan rather than
+# CUDA so the same build works on AMD and Intel graphics too. Needs the Vulkan SDK to build
+# (VULKAN_SDK set); it falls back to the CPU at runtime when there's no usable GPU.
+[target.'cfg(target_os = "windows")'.dependencies]
+sherpa-onnx = { version = "1.13.7", default-features = false, features = ["shared"] }
+whisper-rs = { version = "0.14", features = ["vulkan"] }
 
 [profile.dev.package."*"]
 # whisper.cpp is unusably slow unoptimized, even in dev builds

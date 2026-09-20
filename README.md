@@ -2,7 +2,7 @@
 
 Push-to-talk dictation that still sounds like you. Hold a key, talk, let go, and your words get typed into whatever app you're in, cleaned up the way *you* would clean them up, not polished into corporate email.
 
-- **Hold ⌥ Option** to talk, let go to finish (or pick right Option, fn/🌐, or any key combo; Ctrl+Shift+Space on Windows)
+- **Hold ⌥ Option** to talk, let go to finish (or pick right Option, fn/🌐, or any key combo). On Windows it's **right Ctrl**, with right Alt, Ctrl, Alt or a combo to choose from
 - **Double-tap** for hands-free, tap again to finish, **Esc** cancels. Option still works normally in shortcuts and clicks
 - Every dictation shows **what you said → what got typed**, what was changed and what was only suggested
 - **Your voice** page: a raw↔polished slider, per-kind rules (*change it / suggest / leave it*), words that are yours, a say→write dictionary, and samples of how you write
@@ -18,6 +18,7 @@ hold key ─► mic (cpal) ─► Whisper on-device (whisper.cpp) ─► Claude 
 | Piece | Where | Notes |
 |---|---|---|
 | Hotkey, mic, paste | `src-tauri/src/lib.rs`, `audio.rs`, `paste.rs` | Tauri global shortcut, cpal, arboard + enigo |
+| Hold-to-talk on a bare modifier | `src-tauri/src/modkey.rs` | Polls the modifier state a global shortcut can't express: CoreGraphics on macOS, `GetAsyncKeyState` on Windows |
 | Speech → text | `src-tauri/src/stt.rs` | Local Whisper via whisper.cpp (Metal on Apple Silicon), or a cloud endpoint |
 | Cleanup in your voice | `src-tauri/src/polish.rs` | The prompt lives in `INSTRUCTIONS`; your profile is appended per request |
 | Settings, profile, history | `src-tauri/src/store.rs` | JSON in the app data dir (`~/Library/Application Support/io.tinkerstudio.yap`) |
@@ -66,7 +67,7 @@ API keys are stored in `settings.json` in the app data folder (or read from `ANT
 
 ## Run it
 
-Needs Rust, Node + pnpm, and CMake (`brew install cmake`).
+Needs Rust, Node + pnpm, and CMake — `brew install cmake` on a Mac. On Windows you also need the MSVC toolchain; see [Windows](#windows) below.
 
 ```sh
 pnpm install
@@ -78,14 +79,65 @@ In `pnpm tauri dev`, macOS attributes mic and Accessibility permissions to your 
 
 **UI-only preview** with fake data (no Rust needed): `pnpm dev`, then open http://127.0.0.1:1420/preview.html. Add `?view=voice|insights|settings`, `?onboarding=1`, or `?overlay=listening|thinking|done|error`.
 
-**Tests:** `cd src-tauri && cargo test`. End-to-end Whisper test:
+**Tests:** `cd src-tauri && cargo test`. On Windows, copy `target\debug\*.dll` into `target\debug\deps\` first — sherpa-onnx's build script drops its DLLs beside the app, not beside the test binary, and without them every test aborts with `0xc000007b`. End-to-end Whisper test:
 `YAP_TEST_MODEL=/path/ggml-base.en.bin YAP_TEST_WAV=/path/speech.wav cargo test -- --ignored --nocapture`
 (make a WAV with `say -o speech.wav --file-format=WAVE --data-format=LEI16@16000 "um so like hi"`).
 
 ## Other platforms
 
-- **Windows / Linux:** same code. Build on that machine with Rust, CMake and (Windows) the MSVC build tools, then `pnpm tauri build`. Not yet tested there.
+- **Windows:** same code, same features. See below.
+- **Linux:** same code. Build on that machine with Rust, CMake and the usual webkit2gtk dev packages, then `pnpm tauri build`. The talk key is a key combo only — there's no bare-modifier watcher for X11/Wayland yet. Not yet tested.
 - **iPhone:** a separate native app in `ios/`. See below.
+
+## Windows
+
+Everything the Mac does, with the talk key moved to keys a PC has. **Right Ctrl** is the default: it's the one bare modifier Windows apps don't already act on by itself. Right Alt, either Ctrl, either Alt and any key combo are all in **Settings → Talk key**.
+
+Yap watches the key with `GetAsyncKeyState`, which needs no permission and no driver, so there's no equivalent of the Mac's Accessibility prompt — Yap can paste into other apps right away. Two things follow from how Windows works:
+
+- **Right Alt on an international layout is AltGr**, which reports itself as Ctrl+Alt. Yap treats that as a shortcut and stays out of the way, so the accented character you were typing comes out intact. Pick right Ctrl instead on those layouts.
+- **Windows won't let an ordinary app see keys typed into an elevated window.** If you hold the talk key while Task Manager or an admin console has focus, nothing happens. Running Yap as administrator fixes it, at the usual cost of running it as administrator.
+
+### Speed
+
+Whisper runs on the GPU through **Vulkan**, the way it runs on Metal on a Mac — Vulkan rather than CUDA so one build covers NVIDIA, AMD and Intel. Without it, Whisper Large v3 Turbo is slower than talking, which makes the overlay sit on "Transcribing…" long after you've stopped:
+
+| Whisper Large v3 Turbo, 11.8 s of speech | |
+|---|---|
+| CPU only (i9-10940X, 8 threads) | 42.7 s |
+| Vulkan (RTX 3090) | **0.79 s** |
+
+whisper.cpp compiles its Vulkan shaders the first time a model loads, which is most of a ~25 s one-time cost at launch. It happens on a background thread, so the window opens straight away; a dictation in those first few seconds waits for it.
+
+There's no GPU build of sherpa-onnx here, so the non-Whisper models stay on the CPU.
+
+### Build it
+
+Needs, in this order:
+
+1. **MSVC, the Windows SDK and Clang.** In the Visual Studio Installer, add the *Desktop development with C++* workload plus *C++ Clang tools for Windows* — or just the three components they're there for:
+   ```powershell
+   & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vs_installer.exe" modify `
+     --installPath "C:\Program Files\Microsoft Visual Studio\2022\Community" `
+     --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+     --add Microsoft.VisualStudio.Component.Windows11SDK.22621 `
+     --add Microsoft.VisualStudio.Component.VC.Llvm.Clang --passive --norestart
+   ```
+   Clang is there for `bindgen`, which whisper-rs uses to read whisper.cpp's headers. Without it the build stops at `Unable to find libclang`.
+2. **Rust**, from [rustup.rs](https://rustup.rs) (the `x86_64-pc-windows-msvc` toolchain).
+3. **CMake 3.x**, from [cmake.org](https://cmake.org/download/), on PATH. Not 4.x: whisper.cpp and sherpa-onnx still declare `cmake_minimum_required` values that CMake 4 refuses.
+4. **The [Vulkan SDK](https://vulkan.lunarg.com/sdk/home#windows)**, which is how Whisper reaches the GPU here. The installer sets `VULKAN_SDK` for you.
+5. **Node + pnpm** (`npm install -g pnpm`).
+
+Then the same commands as everywhere else:
+
+```powershell
+pnpm install
+pnpm tauri dev
+.\scripts\release-windows.ps1   # installers into src-tauri\target\release\bundle
+```
+
+`release-windows.ps1` puts rustup's and CMake's directories on PATH itself, and signs the installers when `YAP_WIN_CERT_THUMBPRINT` is set. The first build compiles whisper.cpp and onnxruntime from source — expect a long one, and several GB in `src-tauri\target`.
 
 ## iPhone app (`ios/`)
 

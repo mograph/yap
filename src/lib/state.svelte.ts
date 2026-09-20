@@ -16,11 +16,24 @@ export const app = $state<{
   error: "",
 });
 
+/** Tauri opens the windows from `tauri.conf.json` before the Rust setup hook has managed the
+ *  app state, so a cold start — the first launch after installing, with the virus scanner
+ *  reading a brand new binary — can ask for the snapshot a moment too early and get back
+ *  "state not managed". Keep asking for a couple of seconds before giving up, so a slow
+ *  start shows the app rather than an error the user can only fix by reopening the window. */
 export async function refresh() {
-  try {
-    app.snap = await api.snapshot();
-  } catch (e) {
-    app.error = String(e);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      app.snap = await api.snapshot();
+      app.error = "";
+      return;
+    } catch (e) {
+      if (attempt >= 20) {
+        app.error = String(e);
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }
 }
 

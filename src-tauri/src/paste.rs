@@ -32,8 +32,16 @@ pub fn request_accessibility(app: &AppHandle) {
 fn press_paste() -> Result<(), String> {
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
     let modifier = if cfg!(target_os = "macos") { Key::Meta } else { Key::Control };
+    // Windows sends a `Unicode` key as a typed character, which arrives as text rather than
+    // as a keypress, so the Ctrl a paste needs is never applied to it: the app being pasted
+    // into sees a stray "v" at most. The V virtual key is a real keypress and Ctrl sticks to
+    // it. macOS maps `Unicode` to a keycode, where ⌘ applies, so it stays as it was.
+    #[cfg(target_os = "windows")]
+    let v = Key::V;
+    #[cfg(not(target_os = "windows"))]
+    let v = Key::Unicode('v');
     enigo.key(modifier, Direction::Press).map_err(|e| e.to_string())?;
-    let res = enigo.key(Key::Unicode('v'), Direction::Click).map_err(|e| e.to_string());
+    let res = enigo.key(v, Direction::Click).map_err(|e| e.to_string());
     enigo.key(modifier, Direction::Release).map_err(|e| e.to_string())?;
     res
 }
@@ -63,9 +71,20 @@ pub fn paste(app: &AppHandle, text: &str, restore: bool) -> Result<bool, String>
     rx.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())??;
 
     if let Some(prev) = previous {
-        // Give the target app time to read the clipboard before swapping it back.
-        std::thread::sleep(Duration::from_millis(400));
-        let _ = cb.set_text(prev);
+        // Give the target app time to read the clipboard before swapping it back. Windows
+        // delivers the keystroke to the other app's message loop and an Electron or browser
+        // window can be slow to get to it, so it waits longer here than a Mac needs.
+        let settle = if cfg!(target_os = "windows") { 1200 } else { 400 };
+        std::thread::sleep(Duration::from_millis(settle));
+        // Only take the dictation back off the clipboard if it's still what's on there, so
+        // copying something yourself in the meantime survives. Turning "restore clipboard"
+        // off in Settings is what keeps the dictation there to paste again afterwards.
+        match cb.get_text() {
+            Ok(current) if current == text => {
+                let _ = cb.set_text(prev);
+            }
+            _ => {}
+        }
     }
     Ok(true)
 }
