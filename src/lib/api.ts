@@ -12,6 +12,14 @@ export type Kind =
   | "formatting"
   | "dictionary";
 
+export interface ListPreferences {
+  bulletStyle: string;
+  introText: string;
+  itemSpacing: string;
+  allowNumbered: boolean;
+  indentSpaces: number;
+}
+
 export interface Settings {
   /** "option" | "right-option" | "fn" (macOS) | "shortcut" */
   trigger: string;
@@ -31,6 +39,8 @@ export interface Settings {
   onboarded: boolean;
   /** When there's a tidier arrangement on offer: ask, always take it, or never */
   lists: "ask" | "auto" | "never";
+  /** Customizable list formatting preferences */
+  listPreferences: ListPreferences;
   /** A synced folder holding yap-library.json, or "" */
   libraryFolder: string;
   /** Keep an encrypted copy of the library in Firestore too */
@@ -165,6 +175,8 @@ export const api = {
   requestAccessibility: () => invoke<void>("request_accessibility"),
   checkAccessibility: () => invoke<boolean>("check_accessibility"),
   copy: (text: string) => invoke<void>("copy_text", { text }),
+  exportSettings: () => invoke<Settings>("export_settings"),
+  importSettings: (settings: Settings) => invoke<void>("import_settings", { settings }),
 };
 
 export const KINDS: Kind[] = [

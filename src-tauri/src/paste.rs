@@ -29,7 +29,7 @@ pub fn request_accessibility(app: &AppHandle) {
     });
 }
 
-fn press_paste() -> Result<(), String> {
+fn press_paste() -> Result<bool, String> {
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
     let modifier = if cfg!(target_os = "macos") { Key::Meta } else { Key::Control };
     // Windows sends a `Unicode` key as a typed character, which arrives as text rather than
@@ -40,10 +40,28 @@ fn press_paste() -> Result<(), String> {
     let v = Key::V;
     #[cfg(not(target_os = "windows"))]
     let v = Key::Unicode('v');
+
+    // Strategy 1: Standard Ctrl+V click (quick)
     enigo.key(modifier, Direction::Press).map_err(|e| e.to_string())?;
-    let res = enigo.key(v, Direction::Click).map_err(|e| e.to_string());
+    std::thread::sleep(Duration::from_millis(5));
+    enigo.key(v, Direction::Click).map_err(|e| e.to_string())?;
+    std::thread::sleep(Duration::from_millis(5));
     enigo.key(modifier, Direction::Release).map_err(|e| e.to_string())?;
-    res
+
+    // Strategy 2 (Windows only): Retry with longer hold for web apps (Discord, Slack Web, Gmail)
+    #[cfg(target_os = "windows")]
+    {
+        std::thread::sleep(Duration::from_millis(100));
+        enigo.key(modifier, Direction::Press).map_err(|e| e.to_string())?;
+        std::thread::sleep(Duration::from_millis(50));
+        enigo.key(v, Direction::Press).map_err(|e| e.to_string())?;
+        std::thread::sleep(Duration::from_millis(50));
+        enigo.key(v, Direction::Release).map_err(|e| e.to_string())?;
+        std::thread::sleep(Duration::from_millis(50));
+        enigo.key(modifier, Direction::Release).map_err(|e| e.to_string())?;
+    }
+
+    Ok(true)
 }
 
 pub fn copy(text: &str) -> Result<(), String> {
@@ -74,16 +92,47 @@ pub fn paste(app: &AppHandle, text: &str, restore: bool) -> Result<bool, String>
         // Give the target app time to read the clipboard before swapping it back. Windows
         // delivers the keystroke to the other app's message loop and an Electron or browser
         // window can be slow to get to it, so it waits longer here than a Mac needs.
-        let settle = if cfg!(target_os = "windows") { 1200 } else { 400 };
-        std::thread::sleep(Duration::from_millis(settle));
-        // Only take the dictation back off the clipboard if it's still what's on there, so
-        // copying something yourself in the meantime survives. Turning "restore clipboard"
-        // off in Settings is what keeps the dictation there to paste again afterwards.
-        match cb.get_text() {
-            Ok(current) if current == text => {
-                let _ = cb.set_text(prev);
+        // Use retry logic with backoff for reliability.
+        let initial_settle = if cfg!(target_os = "windows") { 1500 } else { 500 };
+        let max_retries = 3;
+        let mut restored = false;
+
+        for attempt in 0..max_retries {
+            let delay = initial_settle + (attempt * 200);
+            std::thread::sleep(Duration::from_millis(delay));
+
+            // Try to restore the clipboard. Only do it if dictation is still there.
+            match cb.get_text() {
+                Ok(current) if current == text => {
+                    // Text is still the dictation, so restore previous clipboard
+                    match cb.set_text(prev.clone()) {
+                        Ok(_) => {
+                            restored = true;
+                            eprintln!("yap: clipboard restored after {} attempt(s)", attempt + 1);
+                            break;
+                        }
+                        Err(e) => {
+                            eprintln!("yap: failed to restore clipboard (attempt {}): {}", attempt + 1, e);
+                            continue; // Retry if set fails
+                        }
+                    }
+                }
+                Ok(_) => {
+                    // App already modified/read the clipboard, don't restore
+                    restored = true;
+                    eprintln!("yap: app already used clipboard, skipping restore");
+                    break;
+                }
+                Err(e) => {
+                    // Clipboard error, retry
+                    eprintln!("yap: clipboard read error (attempt {}): {}", attempt + 1, e);
+                    continue;
+                }
             }
-            _ => {}
+        }
+
+        if !restored {
+            eprintln!("yap: clipboard restoration failed after {} attempts", max_retries);
         }
     }
     Ok(true)

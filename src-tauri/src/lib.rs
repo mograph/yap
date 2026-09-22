@@ -893,6 +893,19 @@ fn copy_text(text: String) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+fn export_settings(app: AppHandle) -> Result<store::Settings, String> {
+    let st = app.state::<AppState>();
+    Ok(st.settings.lock().unwrap().clone())
+}
+
+#[tauri::command]
+fn import_settings(app: AppHandle, settings: store::Settings) -> Result<(), String> {
+    let st = app.state::<AppState>();
+    *st.settings.lock().unwrap() = settings;
+    st.save_settings()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -988,6 +1001,8 @@ pub fn run() {
             request_accessibility,
             check_accessibility,
             copy_text,
+            export_settings,
+            import_settings,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Yap")

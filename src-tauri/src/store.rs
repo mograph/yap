@@ -28,6 +28,34 @@ pub enum Rule {
     Leave,
 }
 
+/// Customizable list formatting preferences.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ListPreferences {
+    /// Bullet style: "dash", "asterisk", "bullet", "number", or custom like "→"
+    pub bullet_style: String,
+    /// Intro text before list: "Here's what I said:", "You mentioned:", or ""
+    pub intro_text: String,
+    /// Between-item spacing: "single" (one line) or "double" (two lines)
+    pub item_spacing: String,
+    /// Allow numbered lists (1, 2, 3) instead of bullets
+    pub allow_numbered: bool,
+    /// Indent sub-items by N spaces (for nested grouping)
+    pub indent_spaces: u8,
+}
+
+impl Default for ListPreferences {
+    fn default() -> Self {
+        Self {
+            bullet_style: "dash".into(),
+            intro_text: String::new(),
+            item_spacing: "single".into(),
+            allow_numbered: false,
+            indent_spaces: 2,
+        }
+    }
+}
+
 impl Rule {
     pub fn as_str(self) -> &'static str {
         match self {
@@ -65,6 +93,9 @@ pub struct Settings {
     pub onboarded: bool,
     /// When there's a tidier arrangement on offer: "ask", "auto" (always take it) or "never"
     pub lists: String,
+    /// Customizable list formatting preferences
+    #[serde(default)]
+    pub list_preferences: ListPreferences,
     /// A synced folder holding yap-library.json, or "" for no syncing
     pub library_folder: String,
     /// Keep an encrypted copy of the library in Firestore too
@@ -103,6 +134,7 @@ impl Default for Settings {
             sounds: true,
             onboarded: false,
             lists: "ask".into(),
+            list_preferences: ListPreferences::default(),
             library_folder: String::new(),
             cloud_sync: false,
             firebase_project_id: String::new(),

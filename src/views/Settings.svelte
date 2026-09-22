@@ -105,6 +105,7 @@
   }
 
   let libStatus = $state("");
+  let settingsStatus = $state("");
 
   let cloud = $state<CloudStatus>({ registered: false, anonymous: false, email: "", hasPassphrase: false, minPassphrase: 12 });
   let passphrase = $state("");
@@ -184,6 +185,74 @@
     await api.clearHistory();
     snap.history.length = 0;
     confirmClear = false;
+  }
+
+  async function exportSettings() {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const path = await save({
+      defaultPath: "yap-settings.json",
+      filters: [{ name: "Yap Settings", extensions: ["json"] }],
+    });
+    if (!path) return;
+    try {
+      const settings = await api.exportSettings();
+      const json = JSON.stringify(settings, null, 2);
+      await import("@tauri-apps/api/fs").then(m => m.writeTextFile(path, json));
+      settingsStatus = "Settings exported to " + path;
+      setTimeout(() => (settingsStatus = ""), 3000);
+    } catch (e) {
+      settingsStatus = "Export failed: " + String(e);
+    }
+  }
+
+  async function importSettings() {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const path = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "Yap Settings", extensions: ["json"] }],
+    });
+    if (typeof path !== "string") return;
+    try {
+      const content = await import("@tauri-apps/api/fs").then(m => m.readTextFile(path));
+      const settings = JSON.parse(content);
+      await api.importSettings(settings);
+      Object.assign(s, settings);
+      settingsStatus = "Settings imported successfully";
+      setTimeout(() => (settingsStatus = ""), 3000);
+    } catch (e) {
+      settingsStatus = "Import failed: " + String(e);
+    }
+  }
+
+  function generateListPreview(prefs: typeof s.listPreferences): string {
+    const items = ["First item", "Second item", "Third item"];
+    let result = "";
+    if (prefs.introText) result += prefs.introText + "\n";
+
+    for (let i = 0; i < items.length; i++) {
+      const spacing = prefs.itemSpacing === "double" && i > 0 ? "\n" : "";
+      let prefix = "";
+      switch (prefs.bulletStyle) {
+        case "dash":
+          prefix = "-";
+          break;
+        case "asterisk":
+          prefix = "*";
+          break;
+        case "bullet":
+          prefix = "•";
+          break;
+        case "number":
+          prefix = String(i + 1) + ".";
+          break;
+        default:
+          prefix = prefs.bulletStyle;
+      }
+      const indent = " ".repeat(prefs.indentSpaces);
+      result += spacing + indent + prefix + " " + items[i] + "\n";
+    }
+    return result;
   }
 </script>
 
@@ -450,6 +519,75 @@
 </section>
 
 <section class="card group">
+  <h2>List Formatting</h2>
+  <p class="sub">Customize how Yap formats lists when you run through several things.</p>
+
+  <div class="row-field">
+    <label class="label" for="bullet">Bullet Style</label>
+    <select id="bullet" class="field" bind:value={s.listPreferences.bulletStyle}>
+      <option value="dash">- Dash</option>
+      <option value="asterisk">* Asterisk</option>
+      <option value="bullet">• Bullet point</option>
+      <option value="number">1. Numbered</option>
+      <option value="→">→ Arrow</option>
+    </select>
+    <span class="muted small">Choose how items appear in the list.</span>
+  </div>
+
+  <div class="row-field">
+    <label class="label" for="intro">Intro Text (optional)</label>
+    <input
+      id="intro"
+      class="field"
+      type="text"
+      placeholder="e.g., 'Here's what I said:'"
+      bind:value={s.listPreferences.introText}
+    />
+    <span class="muted small">Text before the list. Leave empty for none.</span>
+  </div>
+
+  <div class="row-field">
+    <label class="label" for="spacing">Item Spacing</label>
+    <select id="spacing" class="field" bind:value={s.listPreferences.itemSpacing}>
+      <option value="single">Single (compact)</option>
+      <option value="double">Double (readable)</option>
+    </select>
+    <span class="muted small">Blank line between items.</span>
+  </div>
+
+  <Toggle bind:checked={s.listPreferences.allowNumbered} label="Allow numbered lists" hint="Use 1, 2, 3 instead of bullets when appropriate" />
+
+  <div class="row-field">
+    <label class="label" for="indent">Indent Size</label>
+    <select id="indent" class="field" bind:value={s.listPreferences.indentSpaces}>
+      <option value={0}>No indent</option>
+      <option value={2}>2 spaces</option>
+      <option value={4}>4 spaces</option>
+    </select>
+    <span class="muted small">Space for nested items (if grouped by subject).</span>
+  </div>
+
+  <div class="preview-box">
+    <span class="label">Preview:</span>
+    <pre class="preview">{generateListPreview(s.listPreferences)}</pre>
+  </div>
+</section>
+
+<section class="card group">
+  <h2>Settings Management</h2>
+  <p class="sub">Export and import your settings for backup or company-wide deployment.</p>
+  <div class="lib-actions">
+    <button class="btn sm" onclick={exportSettings}>
+      <Icon name="download" size={14} />Export settings…
+    </button>
+    <button class="btn sm" onclick={importSettings}>
+      <Icon name="upload" size={14} />Import settings…
+    </button>
+  </div>
+  {#if settingsStatus}<span class="muted small">{settingsStatus}</span>{/if}
+</section>
+
+<section class="card group">
   <h2>History</h2>
   <div class="perm">
     <span class="m-text">
@@ -515,4 +653,18 @@
   .folder { font: 12px var(--mono); color: var(--ink-2); word-break: break-all; }
   .danger { color: var(--bad); }
   .danger.confirm { background: var(--bad); color: #fff; border-color: transparent; }
+
+  .preview-box { display: grid; gap: 6px; }
+  .preview {
+    background: var(--card-2);
+    border: 1px solid var(--line);
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    margin: 0;
+    color: var(--ink-2);
+  }
 </style>
