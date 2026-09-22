@@ -137,6 +137,9 @@
   let cloudError = $state("");
   let cloudBusy = $state(false);
   const canSignIn = $derived(!!s.googleClientId.trim() && !!s.googleClientSecret.trim());
+  /// Shown everywhere Google sign-in appears. Same words as the iPhone app.
+  const GOOGLE_WARNING =
+    "Google sign-in uses a Firebase project under Chloe Ward's account (yap-tinkerstudio) that hasn't been migrated yet. Signing in adds your Google account to it.";
   /// Opened automatically when sign-in is pressed before the client is set up.
   let firebaseOpen = $state(false);
 
@@ -481,11 +484,15 @@
       </span>
       <button class="btn ghost sm" onclick={forget} disabled={cloudBusy}>Sign out</button>
     </div>
+    {#if !cloud.anonymous}
+      <p class="google-warn"><Icon name="alert" size={13} />{GOOGLE_WARNING}</p>
+    {/if}
   {:else}
     <div class="choices">
       <div class="choice">
         <b>Sign in with Google</b>
         <span class="muted small">Opens your browser. Your account keeps this library apart from everyone else's. Creates the account if you don't have one.</span>
+        <p class="google-warn"><Icon name="alert" size={13} />{GOOGLE_WARNING}</p>
         <button class="btn sm" onclick={signIn} disabled={cloudBusy}>
           <Icon name="key" size={14} />Sign in with Google
         </button>
@@ -539,6 +546,7 @@
     <label class="label" for="fb-key">Web API key</label>
     <input id="fb-key" class="field" bind:value={s.firebaseApiKey} autocomplete="off" spellcheck="false" />
     <label class="label" for="g-id">Google client ID (Desktop app) — only to sign in</label>
+    <p class="google-warn"><Icon name="alert" size={13} />{GOOGLE_WARNING}</p>
     <input id="g-id" class="field" bind:value={s.googleClientId} autocomplete="off" spellcheck="false" />
     <label class="label" for="g-secret">Google client secret</label>
     <input id="g-secret" class="field" type="password" bind:value={s.googleClientSecret} autocomplete="off" spellcheck="false" />
@@ -593,6 +601,8 @@
   .perm { display: flex; align-items: center; gap: 14px; }
   .lists-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
   .err { color: var(--bad); }
+  .google-warn { display: flex; align-items: flex-start; gap: 6px; margin: 0; font-size: 12px; line-height: 1.45; color: var(--warn); }
+  .google-warn :global(svg) { flex: none; margin-top: 1px; }
   .tone-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; padding: 13px 0 10px; }
   .tier {
     flex: none;

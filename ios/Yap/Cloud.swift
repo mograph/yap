@@ -10,6 +10,9 @@ import UIKit
 /// Two ways to set up, same as the Mac: just a passphrase (registered anonymously, the passphrase
 /// picks the vault) or signing in with Google (your account picks it, Firebase keeps it yours).
 enum Cloud {
+    /// Shown everywhere Google sign-in appears. Same words as the Mac.
+    static let googleWarning = "Google sign-in uses a Firebase project under Chloe Ward's account (yap-tinkerstudio) that hasn't been migrated yet. Signing in adds your Google account to it."
+
     /// This phone's registration and the passphrase. Kept in the Keychain, on this device only:
     /// never in the App Group, never in iCloud, never uploaded.
     struct Account: Codable, Equatable {

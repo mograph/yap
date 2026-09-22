@@ -10,6 +10,8 @@ passphrase) and unlocks it. Any computer with the same passphrase finds the same
 Firebase enforces that nobody else can reach it. Sign-in runs in your real browser via a
 loopback redirect with PKCE, so your Google password goes to Google and never through Yap.
 
+> **Heads up:** Google sign-in uses a Firebase project under Chloe Ward's account (yap-tinkerstudio) that hasn't been migrated yet. Signing in adds your Google account to it.
+
 Either way the library is encrypted here before it leaves, under a key derived from your
 passphrase with a random salt — so Firebase stores a blob it can't read.
 
@@ -54,6 +56,9 @@ https://console.firebase.google.com/project/yap-tinkerstudio/authentication/prov
 **For Google sign-in** — enable the Google provider on that same page, then make a Desktop
 OAuth client:
 
+> **Heads up:** Google sign-in uses a Firebase project under Chloe Ward's account (yap-tinkerstudio) that hasn't been migrated yet. Signing in adds your Google account to it.
+
+
 1. Consent screen, once: https://console.cloud.google.com/auth/overview?project=yap-tinkerstudio
 2. https://console.cloud.google.com/apis/credentials?project=yap-tinkerstudio →
    **Create credentials → OAuth client ID → Desktop app**
@@ -70,7 +75,8 @@ The iPhone app uses the same vaults, the same encryption and the same merge as t
 library flows between them either way. Settings → Account, same two choices.
 
 - **Passphrase only** needs nothing extra: the project and API key come pre-filled.
-- **Google sign-in** needs an OAuth client of the **iOS** type, not the Desktop one the Mac
+- **Google sign-in** (see the heads-up above: the project is under Chloe Ward's account and not
+  yet migrated) needs an OAuth client of the **iOS** type, not the Desktop one the Mac
   uses: https://console.cloud.google.com/apis/credentials?project=yap-tinkerstudio →
   **Create credentials → OAuth client ID → iOS**, bundle ID `io.tinkerstudio.moonshot.ios`.
   Paste its client ID under Account → Firebase details. No secret is needed.

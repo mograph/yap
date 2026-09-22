@@ -182,6 +182,7 @@ struct SettingsView: View {
                     Button("Sign out", role: .destructive) { engine.forgetCloud() }
                         .buttonStyle(.borderless)
                 }
+                if !engine.cloudAnonymous { googleWarning }
             } else {
                 Button {
                     Task { await engine.signInWithGoogle() }
@@ -189,6 +190,7 @@ struct SettingsView: View {
                     Label("Sign in with Google", systemImage: "person.crop.circle.badge.checkmark")
                 }
                 .disabled(engine.cloudBusy)
+                googleWarning
                 Button {
                     Task { await engine.usePassphraseOnly() }
                 } label: {
@@ -234,12 +236,19 @@ struct SettingsView: View {
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                 TextField("Google iOS client ID — only to sign in", text: $engine.settings.googleClientId)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
+                googleWarning
             }
         } header: {
             Text("Account")
         } footer: {
             Text("Only needed to share your library with your Mac and other devices. It's encrypted on this phone first, with a passphrase that never leaves it. Use the same passphrase everywhere; there's no way to recover it.")
         }
+    }
+
+    private var googleWarning: some View {
+        Label(Cloud.googleWarning, systemImage: "exclamationmark.triangle")
+            .font(.caption)
+            .foregroundStyle(Theme.warn)
     }
 
     // MARK: library
