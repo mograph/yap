@@ -168,14 +168,21 @@ static ANNOUNCE: LazyLock<Regex> = LazyLock::new(|| {
           | (?: a | two | three | four | five | couple | few ) \s+ (?: \w+ \s+ ){0,2}
         )
         (?: lists? | tasks | to-?dos? | things | items | points | notes | thoughts
-          | feedback | updates | questions | steps | ideas | changes )\b",
+          | feedback | updates | questions | steps | ideas | changes
+          | brain\s*dump | dump | rundown | run-?through | round-?up )\b",
     )
     .unwrap()
 });
 /// An announcement is the speaker saying what's coming. Without one of these it's just an
 /// item that happens to mention a list ("Give Sam the meeting notes").
 static ANNOUNCER: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)\b(?:i|i'?m|i'?ve|i'?ll|we|we'?re|let'?s|here|here'?s|these|following)\b").unwrap());
+    LazyLock::new(|| {
+        Regex::new(r"(?i)\b(?:i|i'?m|i'?ve|i'?ll|we|we'?re|let'?s|let\s+me|lemme|here|here'?s|these|following)\b").unwrap()
+    });
+/// A bare conjunction at the front of an item: how it was spoken, not part of the thing.
+static LEADING_JOIN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)^(?:and|also|plus|then|so|but|okay|ok|oh|well|yeah)\s+(?:then\s+|also\s+)?").unwrap());
+
 /// A piece that's only spoken filler. Not an item.
 static FILLER_ONLY: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)^(?:u+m+|u+h+|e+r+|a+h+|oh|hmm+|like|so|then|also|and|but|or|plus|first|next|finally|okay|ok|alright|well|right|yeah|yep|hey|hi|anyway|honestly|seriously|literally|actually|basically|you know|i mean|i guess|kind of|sort of|let's see|let me think)$").unwrap()
@@ -325,7 +332,11 @@ pub(crate) fn as_list(text: &str) -> String {
             return String::new();
         }
     }
-    let bullets: Vec<String> = items.iter().map(|i| bullet(i)).filter(|b| !b.is_empty()).collect();
+    let bullets: Vec<String> = items
+        .iter()
+        .map(|i| bullet(LEADING_JOIN.replace(i, "").trim()))
+        .filter(|b| !b.is_empty())
+        .collect();
     if bullets.len() < 3 {
         return String::new();
     }

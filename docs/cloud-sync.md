@@ -10,6 +10,8 @@ passphrase) and unlocks it. Any computer with the same passphrase finds the same
 Firebase enforces that nobody else can reach it. Sign-in runs in your real browser via a
 loopback redirect with PKCE, so your Google password goes to Google and never through Yap.
 
+> **Heads up:** Google sign-in uses a Firebase project under Chloe Ward's account (yap-tinkerstudio) that hasn't been migrated yet. Signing in adds your Google account to it.
+
 Either way the library is encrypted here before it leaves, under a key derived from your
 passphrase with a random salt — so Firebase stores a blob it can't read.
 
@@ -54,6 +56,9 @@ https://console.firebase.google.com/project/yap-tinkerstudio/authentication/prov
 **For Google sign-in** — enable the Google provider on that same page, then make a Desktop
 OAuth client:
 
+> **Heads up:** Google sign-in uses a Firebase project under Chloe Ward's account (yap-tinkerstudio) that hasn't been migrated yet. Signing in adds your Google account to it.
+
+
 1. Consent screen, once: https://console.cloud.google.com/auth/overview?project=yap-tinkerstudio
 2. https://console.cloud.google.com/apis/credentials?project=yap-tinkerstudio →
    **Create credentials → OAuth client ID → Desktop app**
@@ -63,6 +68,33 @@ A Desktop client is the right kind: a Web client rejects the loopback redirect Y
 
 Turn on whichever you want. If a provider is off, Yap says so in plain words rather than
 showing a Firebase error code.
+
+## On the iPhone (Moonshot)
+
+The iPhone app uses the same vaults, the same encryption and the same merge as the Mac, so a
+library flows between them either way. Settings → Account, same two choices.
+
+- **Passphrase only** needs nothing extra: the project and API key come pre-filled.
+- **Google sign-in** (see the heads-up above: the project is under Chloe Ward's account and not
+  yet migrated) needs an OAuth client of the **iOS** type, not the Desktop one the Mac
+  uses: https://console.cloud.google.com/apis/credentials?project=yap-tinkerstudio →
+  **Create credentials → OAuth client ID → iOS**, bundle ID `io.tinkerstudio.moonshot.ios`.
+  Paste its client ID under Account → Firebase details. No secret is needed.
+
+The account and passphrase live in the iOS Keychain, on that device only (never iCloud Keychain),
+readable after first unlock so a sync can finish in the background.
+
+Argon2id isn't in CryptoKit, so `ios/Yap/Argon2.swift` implements it. It has to produce exactly
+the Mac's bytes or the phone can never open the Mac's vault, so `scripts/ios-parity.sh` derives
+keys on both sides and seals a library on each side for the other to open. Derived keys are
+cached per launch: the first sync after opening the app takes a moment, the rest are instant.
+
+## When it syncs
+
+Both apps sync after every dictation, every couple of minutes while open, and when opened (the
+phone also when it comes back to the front). **Sync now** always runs, even with the toggle off.
+One sync at a time, and a sync folds its result into whatever is there when it finishes, so a
+dictation made mid-sync is kept.
 
 ## Rules
 

@@ -34,6 +34,11 @@ enum Polish {
     - When there's nothing to change, return the transcript as-is with an empty edits list.
 
     Report every change you made (applied = true) and every change you held back because its rule is "suggest" (applied = false). For each: the exact original snippet from the transcript, what it became (empty string for a removal), the kind, and a few plain words on why.
+
+    Also return `list`: a tidier arrangement of the same content for the speaker to pick from, leaving `text` alone. Two cases, and only these:
+    - They ran through several separate things: the same cleaned-up content as a "- " bullet list, even if their rules kept `text` as sentences. One bullet per thing, their announcement (if they gave one) as the lead-in line above the bullets, no bullet that is only filler or only half an item.
+    - They talked about two or more subjects and kept switching back and forth: the same sentences gathered by subject, each subject its own paragraph under a short heading in their own words, in the order the subjects first came up. Within a subject keep what they said in the order they said it.
+    Never reorder anything in `text` itself — `text` always stays in the order they spoke. Moving their words around is only ever an offer, never something you do to them. Keep every sentence: if something fits no subject, this isn't a regrouping, so return an empty string. If they only talked about one thing, or said each subject in one go already, there's nothing to gather — return an empty string. Return an empty string whenever it isn't really a list and isn't really a back-and-forth, or when the result would be a pile of fragments.
     """
 
     static let casual = """
@@ -78,6 +83,7 @@ enum Polish {
             "type": "object",
             "properties": [
                 "text": ["type": "string"],
+                "list": ["type": "string"],
                 "edits": [
                     "type": "array",
                     "items": [
@@ -94,7 +100,7 @@ enum Polish {
                     ],
                 ],
             ],
-            "required": ["text", "edits"],
+            "required": ["text", "list", "edits"],
             "additionalProperties": false,
         ]
     }
@@ -186,6 +192,36 @@ enum Polish {
         }
         result.edits.removeAll { !kinds.contains($0.kind) || $0.original == $0.replacement }
 
+        // A tidier arrangement to offer: a list when you ran through several things, or your
+        // subjects gathered up when you bounced between them. Claude writes one; otherwise guess.
+        // The same rules as the Mac's `polish::run`.
+        var list: String
+        if profile.casual {
+            list = ""
+        } else if engine == "local rules" {
+            list = Lists.tidier(result.text)
+        } else {
+            list = result.list.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if !list.isEmpty {
+            var ignored: [Edit] = []
+            list = LocalRules.applyDictionary(profile, list, &ignored)
+        }
+        switch settings.lists {
+        case "never":
+            list = ""
+        case "auto" where !list.isEmpty && list != result.text:
+            let bulleted = list.contains("- ")
+            result.edits.append(Edit(original: "(as said)", replacement: bulleted ? "bullet list" : "grouped by subject",
+                                     kind: "formatting", applied: true,
+                                     why: bulleted ? "you ran through several things" : "you went back and forth between subjects"))
+            result.text = list
+            list = ""
+        default:
+            break
+        }
+        if list == result.text { list = "" }
+
         var d = Dictation()
         d.raw = raw
         d.text = result.text
@@ -195,13 +231,31 @@ enum Polish {
         d.words = LocalRules.words(result.text).count
         d.keptPct = LocalRules.keptPct(raw, result.text)
         d.polishMs = Int(Date().timeIntervalSince(started) * 1000)
+        d.list = list
         return d
     }
 }
 
 struct Cleaned: Decodable {
     var text: String
+    /// A tidier arrangement to offer; the local rules leave it empty and `Lists` fills it in.
+    var list = ""
     var edits: [Edit]
+
+    init(text: String, list: String = "", edits: [Edit]) {
+        self.text = text
+        self.list = list
+        self.edits = edits
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        text = try c.decode(String.self, forKey: .text)
+        list = (try? c.decodeIfPresent(String.self, forKey: .list)) ?? ""
+        edits = try c.decode([Edit].self, forKey: .edits)
+    }
+
+    enum CodingKeys: String, CodingKey { case text, list, edits }
 }
 
 /// Offline cleanup: fillers, stutters, spoken formatting, capitals, final period, dictionary.

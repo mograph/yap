@@ -1,0 +1,39 @@
+{
+  "keys": [
+    { "pass": "seventeen paper lanterns", "salt": "yap-vault-id-v1" },
+    { "pass": "correct horse battery staple", "salt": "0123456789abcdef" },
+    { "pass": "Tt9!vqm2Zx#4Lp", "salt": "saltsaltsalt" },
+    { "pass": "crème brûlée at midnight ✨", "salt": "ünïcødé-salt" },
+    { "pass": "x", "salt": "eightbyt" }
+  ],
+  "passphrases": [
+    "", "short", "password", "Password1", "passphrase", "123456789012", "aaaaaaaaaaaaaa",
+    "abcdefghijkl", "lkjihgfedcba", "yap", "chloe2026", "seventeen paper lanterns",
+    "correct horse battery staple", "Tt9!vqm2Zx#4Lp", "   padded but fine phrase   ", "crème brûlée ✨✨"
+  ],
+  "passphrase": "seventeen paper lanterns",
+  "library": {
+    "app": "yap",
+    "version": 1,
+    "profile": {
+      "name": "Chloe", "tone": 40, "casual": true,
+      "rules": { "filler": "do", "correction": "do", "punctuation": "do", "grammar": "suggest",
+                 "slang": "leave", "rephrase": "suggest", "swearing": "leave", "formatting": "do" },
+      "myWords": ["gonna", "lowkey", "naïve"],
+      "dictionary": [{ "say": "tinker studio", "write": "Tinker Studio" }],
+      "samples": "", "notes": "never capitals in slack ✌️", "updatedAt": 1789784365123
+    },
+    "history": [
+      { "id": "mac-1", "createdAt": "2026-09-19T10:00:00.123456789+00:00", "raw": "um let me do a brain dump",
+        "text": "Let me do a brain dump:\n- Fix the bug\n- Ship it\n- Email Priya", "edits": [
+          { "original": "um", "replacement": "", "kind": "filler", "applied": true, "why": "verbal filler" }],
+        "engine": "local rules", "note": "", "words": 12, "keptPct": 87.5, "audioSecs": 4.25,
+        "sttMs": 812, "polishMs": 3, "list": "" },
+      { "id": "ios-1", "createdAt": "2026-09-20T08:30:00Z", "raw": "groceries milk eggs and bread",
+        "text": "Groceries milk eggs and bread.", "edits": [], "engine": "claude-opus-5", "note": "",
+        "words": 5, "keptPct": 100, "audioSecs": 2, "sttMs": 400, "polishMs": 900,
+        "list": "Groceries:\n- Milk\n- Eggs\n- Bread" }
+    ],
+    "deleted": ["gone-1", "gone-2"]
+  }
+}

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { KINDS, KIND_INFO } from "../lib/api";
   import { app } from "../lib/state.svelte";
-  import { compact, dayKey, minutes, summarize } from "../lib/util";
+  import { compact, minutes, summarize } from "../lib/util";
   import Bars from "../components/Bars.svelte";
   import ChartCard from "../components/ChartCard.svelte";
   import LineChart from "../components/LineChart.svelte";
@@ -29,25 +29,33 @@
     return rows.filter((r) => r.a + r.b > 0).sort((x, y) => y.a + y.b - (x.a + x.b));
   });
 
+  // A day per point while the range is short, then weeks and months. Without this the chart
+  // stopped at 90 points, so an imported year of history counted in the totals but vanished
+  // off the timeline.
   const days = $derived.by(() => {
     const oldest = list.length ? Date.parse(list[list.length - 1].createdAt) : Date.now();
-    const span = range === "all" ? Math.min(90, Math.max(7, Math.ceil((Date.now() - oldest) / 864e5) + 1)) : Number(range);
-    const out: { key: string; label: string; sum: number; n: number }[] = [];
-    for (let i = span - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() - i);
-      out.push({ key: dayKey(d), label: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }), sum: 0, n: 0 });
+    const span = range === "all" ? Math.max(7, Math.ceil((Date.now() - oldest) / 864e5) + 1) : Number(range);
+    const step = span <= 45 ? 1 : span <= 400 ? 7 : 30;
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - (span - 1));
+
+    const out: { at: Date; sum: number; n: number }[] = [];
+    for (let i = 0; i < Math.ceil(span / step); i++) {
+      const at = new Date(start);
+      at.setDate(at.getDate() + i * step);
+      out.push({ at, sum: 0, n: 0 });
     }
-    const index = new Map(out.map((o, i) => [o.key, i]));
     for (const d of list) {
-      const i = index.get(dayKey(new Date(d.createdAt)));
-      if (i !== undefined) {
+      const i = Math.floor((Date.parse(d.createdAt) - start.getTime()) / (step * 864e5));
+      if (i >= 0 && i < out.length) {
         out[i].sum += d.keptPct;
         out[i].n++;
       }
     }
-    return out.map((o) => ({ label: o.label, value: o.n ? o.sum / o.n : null }));
+    const fmt: Intl.DateTimeFormatOptions =
+      step >= 30 ? { month: "short", year: "2-digit" } : { month: "short", day: "numeric" };
+    return out.map((o) => ({ label: o.at.toLocaleDateString(undefined, fmt), value: o.n ? o.sum / o.n : null }));
   });
 
   const fillers = $derived.by(() => {

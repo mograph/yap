@@ -29,25 +29,25 @@ targets:
     info:
       path: Yap/Info.plist
       properties:
-        CFBundleDisplayName: Yap
+        CFBundleDisplayName: Moonshot
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
-        NSMicrophoneUsageDescription: Yap listens while you talk so it can type what you say.
-        # Keeps the mic session alive while you're typing in another app with the Yap keyboard.
+        NSMicrophoneUsageDescription: Moonshot listens while you talk so it can type what you say.
+        # Keeps the mic session alive while you're typing in another app with the Moonshot keyboard.
         UIBackgroundModes: [audio]
         CFBundleURLTypes:
-          - CFBundleURLName: io.tinkerstudio.yap
-            CFBundleURLSchemes: [yap]
+          - CFBundleURLName: io.tinkerstudio.moonshot
+            CFBundleURLSchemes: [moonshot]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: Yap/Yap.entitlements
       properties:
-        com.apple.security.application-groups: [group.io.tinkerstudio.yap]
+        com.apple.security.application-groups: [group.io.tinkerstudio.moonshot]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.tinkerstudio.yap.ios
+        PRODUCT_BUNDLE_IDENTIFIER: io.tinkerstudio.moonshot.ios
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     dependencies:
@@ -63,7 +63,7 @@ targets:
     info:
       path: Keyboard/Info.plist
       properties:
-        CFBundleDisplayName: Yap
+        CFBundleDisplayName: Moonshot
         NSExtension:
           NSExtensionPointIdentifier: com.apple.keyboard-service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
@@ -76,7 +76,7 @@ targets:
     entitlements:
       path: Keyboard/Keyboard.entitlements
       properties:
-        com.apple.security.application-groups: [group.io.tinkerstudio.yap]
+        com.apple.security.application-groups: [group.io.tinkerstudio.moonshot]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.tinkerstudio.yap.ios.keyboard
+        PRODUCT_BUNDLE_IDENTIFIER: io.tinkerstudio.moonshot.ios.keyboard
