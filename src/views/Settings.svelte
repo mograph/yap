@@ -189,6 +189,7 @@
 
   async function exportSettings() {
     const { save } = await import("@tauri-apps/plugin-dialog");
+    const { writeTextFile } = await import("@tauri-apps/api/fs");
     const path = await save({
       defaultPath: "yap-settings.json",
       filters: [{ name: "Yap Settings", extensions: ["json"] }],
@@ -197,8 +198,8 @@
     try {
       const settings = await api.exportSettings();
       const json = JSON.stringify(settings, null, 2);
-      await import("@tauri-apps/api/fs").then(m => m.writeTextFile(path, json));
-      settingsStatus = "Settings exported to " + path;
+      await writeTextFile(path, json);
+      settingsStatus = "Settings exported to " + path.split("\\").pop();
       setTimeout(() => (settingsStatus = ""), 3000);
     } catch (e) {
       settingsStatus = "Export failed: " + String(e);
@@ -207,6 +208,7 @@
 
   async function importSettings() {
     const { open } = await import("@tauri-apps/plugin-dialog");
+    const { readTextFile } = await import("@tauri-apps/api/fs");
     const path = await open({
       multiple: false,
       directory: false,
@@ -214,7 +216,7 @@
     });
     if (typeof path !== "string") return;
     try {
-      const content = await import("@tauri-apps/api/fs").then(m => m.readTextFile(path));
+      const content = await readTextFile(path);
       const settings = JSON.parse(content);
       await api.importSettings(settings);
       Object.assign(s, settings);
