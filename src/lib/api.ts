@@ -109,6 +109,10 @@ export interface ModelInfo {
   languageMode: "any" | "pick" | "auto";
   usesVocabulary: boolean;
   installed: boolean;
+  /** Accuracy percentage (0-100) */
+  accuracy?: number;
+  /** Speed rating: "slow", "medium", "fast" */
+  speed?: "slow" | "medium" | "fast";
 }
 
 /** Cloud sync state. Never carries the passphrase or the token. */

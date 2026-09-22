@@ -54,7 +54,19 @@
   <button class="trigger" class:open onclick={() => (open = !open)} aria-haspopup="listbox" aria-expanded={open}>
     <span class="main">
       <span class="name">{selected.label}{#if selected.badge}<span class="badge">{selected.badge}</span>{/if}</span>
-      <span class="sub">{selected.maker} · {selected.languages}</span>
+      <span class="sub">
+        {selected.maker} · {selected.languages}
+        <span class="spacer">·</span>
+        <span class="size">{size(selected.sizeMb)}</span>
+        {#if selected.accuracy !== undefined}
+          <span class="spacer">·</span>
+          <span class="accuracy">{selected.accuracy}%</span>
+        {/if}
+        {#if selected.speed}
+          <span class="spacer">·</span>
+          <span class="speed" class={selected.speed}>{selected.speed}</span>
+        {/if}
+      </span>
     </span>
     <span class="state" class:ok={selected.installed}>{selected.installed ? "Ready" : "Not downloaded"}</span>
     <span class="chev" class:up={open}><Icon name="chevron" size={16} /></span>
@@ -77,7 +89,19 @@
             <span class="check">{#if m.id === value}<Icon name="check" size={15} stroke={2.4} />{/if}</span>
             <span class="main">
               <span class="name">{m.label}{#if m.badge}<span class="badge">{m.badge}</span>{/if}</span>
-              <span class="sub">{m.maker} · {m.languages} · {size(m.sizeMb)}</span>
+              <span class="sub">
+                {m.maker} · {m.languages}
+                <span class="spacer">·</span>
+                <span class="size" title="Storage required">{size(m.sizeMb)}</span>
+                {#if m.accuracy !== undefined}
+                  <span class="spacer">·</span>
+                  <span class="accuracy" title="Recognition accuracy">{m.accuracy}% accurate</span>
+                {/if}
+                {#if m.speed}
+                  <span class="spacer">·</span>
+                  <span class="speed" class={m.speed} title="Processing speed">{m.speed}</span>
+                {/if}
+              </span>
               <span class="note">{m.note}</span>
             </span>
             <span class="side">
@@ -199,4 +223,12 @@
   @keyframes pulse {
     50% { opacity: 0.45; }
   }
+
+  .spacer { margin: 0 3px; color: var(--line); }
+  .size { font-weight: 550; color: var(--ink-2); }
+  .accuracy { font-weight: 550; color: #28a745; }
+  .speed { font-weight: 550; font-size: 11px; text-transform: capitalize; padding: 2px 6px; border-radius: 4px; }
+  .speed.fast { background: #e3f2fd; color: #1976d2; }
+  .speed.medium { background: #fff3e0; color: #e65100; }
+  .speed.slow { background: #ffebee; color: #c62828; }
 </style>
