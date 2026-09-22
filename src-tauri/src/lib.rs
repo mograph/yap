@@ -1,5 +1,6 @@
 mod cloud;
 mod library;
+mod notes;
 mod polish;
 mod store;
 mod stt;
@@ -68,6 +69,11 @@ pub struct AppState {
     deleted: Mutex<Vec<String>>,
     /// Google sign-in and the passphrase your library is encrypted with. Owner-only on disk.
     account: Mutex<cloud::Account>,
+    /// Meeting notes, newest first.
+    notes: Mutex<Vec<notes::Note>>,
+    /// The note being recorded right now, if any.
+    #[cfg(desktop)]
+    recording: Mutex<Option<(String, notes::Session)>>,
     phase: Mutex<Phase>,
     #[cfg(desktop)]
     recorder: Arc<audio::Recorder>,
@@ -96,6 +102,11 @@ impl AppState {
             let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
         }
         Ok(())
+    }
+
+    fn save_notes(&self) -> Result<(), String> {
+        let notes = self.notes.lock().unwrap().clone();
+        store::save(&self.file("notes.json"), &notes)
     }
 
     fn save_history(&self) -> Result<(), String> {
@@ -361,6 +372,148 @@ fn sync_cloud_soon(app: &AppHandle) {
             eprintln!("yap: cloud sync: {e}");
         }
     });
+}
+
+// ---------- notes ----------
+
+#[tauri::command]
+fn notes_list(state: State<'_, AppState>) -> Vec<notes::Note> {
+    state.notes.lock().unwrap().clone()
+}
+
+/// Which note is recording, so a reopened window picks up where it was.
+#[tauri::command]
+fn note_recording(state: State<'_, AppState>) -> Option<String> {
+    #[cfg(desktop)]
+    return state.recording.lock().unwrap().as_ref().map(|(id, _)| id.clone());
+    #[cfg(not(desktop))]
+    return None;
+}
+
+/// Starts a note. `mode` is "person" (the mic hears the room) or "call" (the mic is you and the
+/// Mac's sound is them). Always your local model: meetings don't leave the Mac.
+#[cfg(desktop)]
+#[tauri::command]
+fn note_start(app: AppHandle, mode: String) -> Result<notes::Note, String> {
+    let st = app.state::<AppState>();
+    if st.recording.lock().unwrap().is_some() {
+        return Err("A note is already recording.".into());
+    }
+    let model = st.settings.lock().unwrap().local_model.clone();
+    let installed = stt::spec(&model).is_some_and(|spec| stt::location(&st.data_dir, spec).exists());
+    if !installed {
+        return Err("Notes transcribe on this Mac. Download a model in Settings → Ears first.".into());
+    }
+
+    let mut note = notes::Note {
+        id: uuid::Uuid::new_v4().to_string(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        mode: if mode == "call" { "call" } else { "person" }.into(),
+        ..Default::default()
+    };
+    note.title = notes::default_title(&note);
+    let id = note.id.clone();
+
+    let (for_worker, for_levels) = (app.clone(), app.clone());
+    let transcribe = move |chunk: notes::Chunk| {
+        let st = for_worker.state::<AppState>();
+        let (settings, profile) = (st.settings.lock().unwrap().clone(), st.profile.lock().unwrap().clone());
+        let text = st.stt.transcribe(&st.data_dir, &settings.local_model, &chunk.samples, &settings.language, &stt::vocabulary(&profile));
+        let text = match text {
+            Ok(t) if !notes::is_noise(&t, chunk.loudness) => t,
+            Ok(_) => return,
+            Err(e) => {
+                eprintln!("yap: notes transcription: {e}");
+                return;
+            }
+        };
+        let segment = notes::Segment { at: chunk.at, who: chunk.who.into(), text };
+        {
+            let mut all = st.notes.lock().unwrap();
+            if let Some(n) = all.iter_mut().find(|n| n.id == id) {
+                n.segments.push(segment.clone());
+            }
+        }
+        // Saved as it goes, so a crash mid-meeting keeps what was said.
+        let _ = st.save_notes();
+        let _ = for_worker.emit("yap://note-segment", serde_json::json!({ "id": id, "segment": segment }));
+    };
+    let levels = move |you: f32, them: f32| {
+        let _ = for_levels.emit("yap://note-level", serde_json::json!({ "you": you, "them": them }));
+    };
+
+    let (session, warning) = notes::start(note.mode == "call", transcribe, levels)?;
+    note.warning = warning.unwrap_or_default();
+    st.notes.lock().unwrap().insert(0, note.clone());
+    st.save_notes()?;
+    *st.recording.lock().unwrap() = Some((note.id.clone(), session));
+    Ok(note)
+}
+
+#[cfg(not(desktop))]
+#[tauri::command]
+fn note_start(_mode: String) -> Result<notes::Note, String> {
+    Err("Notes record on the desktop app.".into())
+}
+
+/// Stops the note, transcribes what's left, and lays out the notes.
+#[tauri::command]
+async fn note_stop(app: AppHandle) -> Result<notes::Note, String> {
+    #[cfg(desktop)]
+    {
+        let taken = app.state::<AppState>().recording.lock().unwrap().take();
+        let (id, session) = taken.ok_or("Nothing is recording.")?;
+        // The last piece still has to go through Whisper, which can take a moment.
+        let secs = tauri::async_runtime::spawn_blocking(move || session.finish()).await.map_err(|e| e.to_string())?;
+        let st = app.state::<AppState>();
+        let profile = st.profile.lock().unwrap().clone();
+        let note = {
+            let mut all = st.notes.lock().unwrap();
+            let note = all.iter_mut().find(|n| n.id == id).ok_or("That note is gone.")?;
+            note.duration_secs = secs;
+            note.summary = notes::summarize(note, &profile);
+            note.clone()
+        };
+        st.save_notes()?;
+        Ok(note)
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        Err("Notes record on the desktop app.".into())
+    }
+}
+
+/// Saves your title and notes, and re-lays-out the notes unless it's still recording.
+#[tauri::command]
+fn note_save(state: State<'_, AppState>, id: String, title: String, my_notes: String) -> Result<notes::Note, String> {
+    #[cfg(desktop)]
+    let live = state.recording.lock().unwrap().as_ref().is_some_and(|(r, _)| *r == id);
+    #[cfg(not(desktop))]
+    let live = false;
+    let profile = state.profile.lock().unwrap().clone();
+    let note = {
+        let mut all = state.notes.lock().unwrap();
+        let note = all.iter_mut().find(|n| n.id == id).ok_or("That note is gone.")?;
+        note.my_notes = my_notes;
+        note.title = if title.trim().is_empty() { notes::default_title(note) } else { title.trim().to_string() };
+        if !live {
+            note.summary = notes::summarize(note, &profile);
+        }
+        note.clone()
+    };
+    state.save_notes()?;
+    Ok(note)
+}
+
+#[tauri::command]
+fn note_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    #[cfg(desktop)]
+    if state.recording.lock().unwrap().as_ref().is_some_and(|(r, _)| *r == id) {
+        return Err("Stop the recording first.".into());
+    }
+    state.notes.lock().unwrap().retain(|n| n.id != id);
+    state.save_notes()
 }
 
 fn library_loop(app: AppHandle) {
@@ -934,6 +1087,7 @@ pub fn run() {
             let profile: Profile = store::load(&data_dir.join("profile.json"));
             let history: Vec<Dictation> = store::load(&data_dir.join("history.json"));
             let account: cloud::Account = store::load(&data_dir.join("account.json"));
+            let notes: Vec<notes::Note> = store::load(&data_dir.join("notes.json"));
             let deleted: Vec<String> = store::load(&data_dir.join("deleted.json"));
             #[cfg(desktop)]
             let (combo, engine, model) =
@@ -948,6 +1102,9 @@ pub fn run() {
                 history: Mutex::new(history),
                 deleted: Mutex::new(deleted),
                 account: Mutex::new(account),
+                notes: Mutex::new(notes),
+                #[cfg(desktop)]
+                recording: Mutex::new(None),
                 phase: Mutex::new(Phase::Idle),
                 #[cfg(desktop)]
                 recorder: Arc::new(audio::Recorder::spawn(app.handle().clone())),
@@ -1006,6 +1163,12 @@ pub fn run() {
             cloud_forget,
             set_cloud_passphrase,
             cloud_sync_now,
+            notes_list,
+            note_start,
+            note_stop,
+            note_save,
+            note_delete,
+            note_recording,
             download_model,
             delete_model,
             polish_text,

@@ -43,8 +43,10 @@ tar = "0.4"
 bzip2 = "0.6.1"
 
 # Local Whisper (whisper.cpp). Metal on Apple Silicon, CPU elsewhere.
+# ScreenCaptureKit: the other side of a call, for Notes. Audio only, never the screen.
 [target.'cfg(target_os = "macos")'.dependencies]
 whisper-rs = { version = "0.14", features = ["metal"] }
+screencapturekit = { version = "10", features = ["macos_14_0"] }
 
 [target.'cfg(any(target_os = "windows", target_os = "linux"))'.dependencies]
 whisper-rs = "0.14"

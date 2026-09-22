@@ -9,12 +9,14 @@
   import Icon from "./components/Icon.svelte";
   import Onboarding from "./components/Onboarding.svelte";
   import Home from "./views/Home.svelte";
+  import Notes from "./views/Notes.svelte";
   import Voice from "./views/Voice.svelte";
   import Insights from "./views/Insights.svelte";
   import SettingsView from "./views/Settings.svelte";
 
-  const nav: { id: View; label: string; icon: string }[] = [
+  const nav: { id: View; label: string; icon: string; badge?: string }[] = [
     { id: "home", label: "Home", icon: "home" },
+    { id: "notes", label: "Notes", icon: "note", badge: "Alpha" },
     { id: "voice", label: "Your voice", icon: "sliders" },
     { id: "insights", label: "Insights", icon: "chart" },
     { id: "settings", label: "Settings", icon: "gear" },
@@ -75,6 +77,7 @@
           <button class:active={app.view === n.id} onclick={() => (app.view = n.id)}>
             <Icon name={n.icon} size={17} />
             {n.label}
+            {#if n.badge}<span class="badge">{n.badge}</span>{/if}
           </button>
         {/each}
       </nav>
@@ -96,6 +99,8 @@
         <div class="content" in:fly={{ y: 8, duration: 220 }}>
           {#if app.view === "home"}
             <Home />
+          {:else if app.view === "notes"}
+            <Notes />
           {:else if app.view === "voice"}
             <Voice />
           {:else if app.view === "insights"}
@@ -148,6 +153,16 @@
     transition: background 0.15s, color 0.15s;
   }
   nav button:hover { background: var(--line); color: var(--ink); }
+  .badge {
+    margin-left: auto;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-2);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+  }
   nav button.active { background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--line); }
   .spacer { flex: 1; }
 
@@ -175,6 +190,7 @@
   @media (max-width: 880px) {
     .shell { grid-template-columns: 76px 1fr; }
     .word, .status, nav button { font-size: 0; }
+    .badge { display: none; }
     nav button { justify-content: center; padding: 0; }
     .brand { justify-content: center; padding: 0 0 22px; }
     .content { padding: 44px 26px 80px; }

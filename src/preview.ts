@@ -5,7 +5,7 @@ import { mount } from "svelte";
 import "./app.css";
 import App from "./App.svelte";
 import Overlay from "./Overlay.svelte";
-import type { Dictation, Edit, Kind, Snapshot } from "./lib/api";
+import type { Dictation, Edit, Kind, Note, Snapshot } from "./lib/api";
 import { app, type View } from "./lib/state.svelte";
 
 const params = new URLSearchParams(location.search);
@@ -172,6 +172,74 @@ const snapshot: Snapshot = {
   envKey: false,
 };
 
+// Notes: one finished call, one in person, and (with ?recording) one still going.
+const summary = `# Launch sync
+Sep 22, 11:00 AM · 25 min · On a call
+
+## Your notes
+- pricing still open
+- ask about the beta
+
+## Action items
+- I'll send a new pricing draft by Friday
+- We need to email them this week and explain the delay
+- Can you draft that email? (them)
+
+## Decisions
+- On the beta, we decided to push it to October, because the onboarding isn't ready (them)
+- Let's go with three tiers for pricing
+
+## Open questions
+- The pricing page is still too busy, can we cut it down to three tiers? (them)
+- What happens to the people on the waitlist though? (them)
+
+## Came up
+Pricing, Draft, Tier`;
+const segs = (who: "you" | "them" | "room", lines: [number, string][]) => lines.map(([at, text]) => ({ at, who, text }));
+const notes: Note[] = [
+  {
+    id: "n1",
+    title: "Launch sync",
+    createdAt: ago(2),
+    mode: "call",
+    durationSecs: 1500,
+    myNotes: "- pricing still open\n- ask about the beta",
+    summary,
+    warning: "",
+    segments: [
+      ...segs("them", [[0, "Okay, let's get started with the launch sync. The pricing page is still too busy, can we cut it down to three tiers?"], [14.8, "Great, on the beta, we decided to push it to October, because the onboarding isn't ready."], [21.8, "What happens to the people on the waitlist though? We need to email them this week and explain the delay. Can you draft that email?"]]),
+      ...segs("you", [[8.5, "Yeah, I think that works. I'll send a new pricing draft by Friday."], [31.8, "Sure, I can do that. Let's go with three tiers for pricing then."]]),
+    ],
+  },
+  {
+    id: "n2",
+    title: "Venue walkthrough",
+    createdAt: ago(30),
+    mode: "person",
+    durationSecs: 780,
+    myNotes: "",
+    summary: "# Venue walkthrough\nSep 21 · 13 min · In person\n\n## Action items\n- We need to book the venue this week\n\n## Came up\nVenue, Catering",
+    warning: "",
+    segments: segs("room", [[75, "We need to book the venue this week."], [140, "Catering can start at six."]]),
+  },
+];
+if (params.has("recording")) {
+  notes.unshift({
+    id: "live",
+    title: "Design review",
+    createdAt: ago(0.06),
+    mode: "call",
+    durationSecs: 0,
+    myNotes: "- header too heavy\n- check the empty states",
+    summary: "",
+    warning: "",
+    segments: [
+      ...segs("them", [[2, "Okay so first thing, the header feels too heavy. It's competing with the logo."], [41, "Can we try it without the gradient?"]]),
+      ...segs("you", [[19, "Agreed. I'll pull it back to the flat version and send it over this afternoon."]]),
+    ],
+  });
+}
+
 mockWindows("main");
 mockIPC(
   (cmd, args) => {
@@ -184,6 +252,15 @@ mockIPC(
         return true;
       case "polish_text":
         return { ...history[0], id: "try", raw: (args as { raw: string }).raw };
+      case "notes_list":
+        return structuredClone(notes);
+      case "note_recording":
+        return params.has("recording") ? "live" : null;
+      case "note_save": {
+        const a = args as { id: string; title: string; myNotes: string };
+        const n = notes.find((x) => x.id === a.id)!;
+        return { ...n, title: a.title, myNotes: a.myNotes };
+      }
       default:
         return null;
     }
@@ -213,4 +290,5 @@ if (overlay) {
 } else {
   app.view = (params.get("view") as View) ?? "home";
   mount(App, { target: document.getElementById("app")! });
+  if (params.has("recording")) setInterval(() => emit("yap://note-level", { you: 0.004 + rand() ** 2 * 0.1, them: 0.004 + rand() ** 3 * 0.12 }), 120);
 }

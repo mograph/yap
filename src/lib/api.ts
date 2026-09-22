@@ -101,6 +101,31 @@ export interface ModelInfo {
   installed: boolean;
 }
 
+/** One stretch of speech in a note. */
+export interface Segment {
+  /** Seconds from the start of the recording */
+  at: number;
+  /** "you" or "them" on a call; "room" in person */
+  who: "you" | "them" | "room";
+  text: string;
+}
+
+/** A recorded meeting, in person or on a call. */
+export interface Note {
+  id: string;
+  title: string;
+  createdAt: string;
+  mode: "person" | "call";
+  durationSecs: number;
+  segments: Segment[];
+  /** What you typed while it listened */
+  myNotes: string;
+  /** The laid-out notes, as Markdown */
+  summary: string;
+  /** Something worth knowing, like why the other side of a call wasn't heard */
+  warning: string;
+}
+
 /** Cloud sync state. Never carries the passphrase or the token. */
 export interface CloudStatus {
   /** This computer is registered with Firebase, one way or the other. */
@@ -158,6 +183,12 @@ export const api = {
   cloudForget: () => invoke<CloudStatus>("cloud_forget"),
   setCloudPassphrase: (passphrase: string) => invoke<CloudStatus>("set_cloud_passphrase", { passphrase }),
   cloudSyncNow: () => invoke<string>("cloud_sync_now"),
+  notesList: () => invoke<Note[]>("notes_list"),
+  noteRecording: () => invoke<string | null>("note_recording"),
+  noteStart: (mode: Note["mode"]) => invoke<Note>("note_start", { mode }),
+  noteStop: () => invoke<Note>("note_stop"),
+  noteSave: (id: string, title: string, myNotes: string) => invoke<Note>("note_save", { id, title, myNotes }),
+  noteDelete: (id: string) => invoke<void>("note_delete", { id }),
   downloadModel: (id: string) => invoke<void>("download_model", { id }),
   deleteModel: (id: string) => invoke<void>("delete_model", { id }),
   polishText: (raw: string) => invoke<Dictation>("polish_text", { raw }),

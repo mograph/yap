@@ -313,6 +313,146 @@ fn blank_firebase_settings_are_filled_but_real_ones_kept() {
 }
 
 #[test]
+fn notes_pick_out_what_matters() {
+    use crate::notes::{self, Note, Segment};
+    let seg = |at: f32, who: &str, text: &str| Segment { at, who: who.into(), text: text.into() };
+    let note = Note {
+        title: "Launch sync".into(),
+        created_at: "2026-09-22T15:00:00+00:00".into(),
+        mode: "call".into(),
+        duration_secs: 1500.0,
+        my_notes: "- pricing still open\n- ask about the beta".into(),
+        segments: vec![
+            seg(3.0, "them", "um so the pricing page is still too busy honestly. Can we cut it to three tiers?"),
+            seg(4.0, "you", "the pricing page is still too busy honestly can we cut it to three tiers"),
+            seg(20.0, "you", "Yeah. I'll send the new pricing draft by Friday."),
+            seg(41.0, "them", "Great. We decided to push the beta to October. What happens to the waitlist though?"),
+            seg(60.0, "you", "Let's go with the three tier pricing then."),
+        ],
+        ..Default::default()
+    };
+    let out = notes::summarize(&note, &Profile::default());
+    println!("{out}");
+
+    assert!(out.starts_with("# Launch sync\n"));
+    assert!(out.contains("25 min · On a call"));
+    // Your own notes come first, as written.
+    assert!(out.contains("## Your notes\n- pricing still open\n- ask about the beta"));
+    assert!(out.contains("## Action items\n- I'll send the new pricing draft by Friday\n"));
+    // "Let's go with" settles something, so it's a decision rather than an action.
+    assert!(out.contains("- We decided to push the beta to October (them)"));
+    assert!(out.contains("- Let's go with the three tier pricing then"));
+    assert!(out.contains("## Open questions\n- Can we cut it to three tiers? (them)\n- What happens to the waitlist though? (them)"));
+    assert!(out.contains("## Came up\nPricing, Tier\n"), "number words aren't topics");
+    // Filler is cleaned the same way dictation is, and each line says who spoke and when.
+    assert!(out.contains("Them · 0:03  So the pricing page is still too busy honestly."));
+    assert!(out.contains("You · 0:20  Yeah."));
+    // Your mic picking up their voice through speakers isn't a second copy of what they said.
+    assert!(!out.contains("You · 0:04"));
+}
+
+#[test]
+fn notes_hold_up_on_real_whisper_output() {
+    use crate::notes::{self, Note, Segment};
+    // What local Whisper actually returned for a synthesized meeting, unpunctuated last line included.
+    let said = [
+        (0.0, "Okay, let's get started with the launch sync. The pricing page is still too busy, can we cut it down to three tiers?"),
+        (8.5, "Yeah, I think that works. I'll send a new pricing draft by Friday."),
+        (14.8, "Great, on the beta, we decided to push it to October, because the onboarding isn't ready."),
+        (21.8, "What happens to the people on the waitlist though? We need to email them this week and explain the delay. Can you draft that email?"),
+        (31.8, "sure i can do that let's go with three tiers for pricing then anything else no i think that's everything thanks everyone"),
+    ];
+    let note = Note {
+        mode: "person".into(),
+        created_at: "2026-09-22T15:00:00+00:00".into(),
+        segments: said.iter().map(|(at, t)| Segment { at: *at, who: "room".into(), text: (*t).into() }).collect(),
+        ..Default::default()
+    };
+    let out = notes::summarize(&note, &Profile::default());
+    println!("{out}");
+    // Opening a meeting isn't something anyone has to do.
+    assert!(!out.contains("- Okay, let's get started"));
+    assert!(out.contains("## Action items\n- I'll send a new pricing draft by Friday\n- We need to email them this week and explain the delay\n- Can you draft that email?\n"));
+    // Lead-ins are dropped, and a run-on is cut down to the point.
+    assert!(out.contains("## Decisions\n- On the beta, we decided to push it to October, because the onboarding isn't ready\n- Let's go with three tiers for pricing\n"));
+    assert!(out.contains("## Open questions\n- The pricing page is still too busy, can we cut it down to three tiers?\n- What happens to the people on the waitlist though?\n"));
+}
+
+#[test]
+fn notes_in_person_have_no_speaker_labels() {
+    use crate::notes::{self, Note, Segment};
+    let note = Note {
+        mode: "person".into(),
+        created_at: "2026-09-22T15:00:00+00:00".into(),
+        segments: vec![Segment { at: 75.0, who: "room".into(), text: "We need to book the venue this week.".into() }],
+        ..Default::default()
+    };
+    let out = notes::summarize(&Note { title: notes::default_title(&note), ..note }, &Profile::default());
+    assert!(out.starts_with("# Meeting · Sep 22"));
+    assert!(out.contains("In person"));
+    assert!(out.contains("\n1:15  We need to book the venue this week.\n"));
+    assert!(!out.contains("You ·") && !out.contains("Them ·"));
+}
+
+#[test]
+fn whisper_filling_silence_is_not_a_line() {
+    use crate::notes::is_noise;
+    assert!(is_noise("Thank you.", 0.01));
+    assert!(is_noise("  ", 0.5));
+    // The same words said out loud are kept.
+    assert!(!is_noise("Thank you.", 0.08));
+    assert!(!is_noise("We should ship it.", 0.01));
+}
+
+#[test]
+fn recordings_are_cut_at_pauses_and_silence_is_skipped() {
+    use crate::notes::chunks_of;
+    let rate = 16_000;
+    let tone = |secs: f32| (0..(secs * rate as f32) as usize).map(|i| 0.2 * (i as f32 * 0.05).sin()).collect::<Vec<_>>();
+    let hush = |secs: f32| vec![0.0f32; (secs * rate as f32) as usize];
+
+    // 7 s of talk, a 2 s pause, 3 s of talk, then 30 s of nothing.
+    let audio: Vec<f32> = [tone(7.0), hush(2.0), tone(3.0), hush(30.0)].concat();
+    let chunks = chunks_of("room", &audio);
+    // The pause after the first stretch ends a piece early; the silence at the end is dropped.
+    assert_eq!(chunks.len(), 2, "{:?}", chunks.iter().map(|c| (c.at, c.samples.len())).collect::<Vec<_>>());
+    assert_eq!(chunks[0].at, 0.0);
+    assert!(chunks[1].at >= 7.0 && chunks[1].at <= 9.5, "second piece starts after the pause: {}", chunks[1].at);
+    assert!(chunks.iter().all(|c| c.who == "room"));
+
+    // A long monologue never goes to Whisper in one piece longer than 20 s.
+    let long = chunks_of("you", &tone(65.0));
+    assert!(long.iter().all(|c| c.samples.len() <= 20 * rate));
+    assert!((long.iter().map(|c| c.samples.len()).sum::<usize>() as i64 - 65 * rate as i64).abs() < rate as i64);
+}
+
+/// End to end through the real local model: speech → cutting → Whisper → notes.
+/// YAP_TEST_DATA=<app data dir> YAP_TEST_WAV=<16 kHz mono wav> cargo test --lib notes_end_to_end -- --ignored --nocapture
+#[test]
+#[ignore]
+fn notes_end_to_end() {
+    use crate::notes::{self, chunks_of, Note, Segment};
+    let data = std::path::PathBuf::from(std::env::var("YAP_TEST_DATA").expect("set YAP_TEST_DATA"));
+    let samples = read_wav(&std::env::var("YAP_TEST_WAV").expect("set YAP_TEST_WAV"));
+    let local = stt::Local::default();
+    let model = store::Settings::default().local_model;
+    let started = std::time::Instant::now();
+    let chunks = chunks_of("room", &samples);
+    let mut note = Note { mode: "person".into(), created_at: chrono::Utc::now().to_rfc3339(), ..Default::default() };
+    for c in &chunks {
+        let text = local.transcribe(&data, &model, &c.samples, "auto", "").unwrap();
+        println!("[{:>5.1}s, {:>4.1}s long] {text}", c.at, c.samples.len() as f32 / 16_000.0);
+        if !notes::is_noise(&text, c.loudness) {
+            note.segments.push(Segment { at: c.at, who: c.who.into(), text });
+        }
+    }
+    note.duration_secs = samples.len() as f32 / 16_000.0;
+    note.title = notes::default_title(&note);
+    println!("\n{} pieces in {:.1}s\n\n{}", chunks.len(), started.elapsed().as_secs_f32(), notes::summarize(&note, &Profile::default()));
+    assert!(!note.segments.is_empty());
+}
+
+#[test]
 fn library_import_adds_and_never_removes() {
     let mut mine = Profile::default();
     let mut theirs = Profile::default();

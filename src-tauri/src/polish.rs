@@ -361,7 +361,7 @@ const STOP: &[&str] = &[
 ];
 
 /// Sentences, each keeping its own end punctuation.
-fn sentences_with_ends(body: &str) -> Vec<&str> {
+pub(crate) fn sentences_with_ends(body: &str) -> Vec<&str> {
     let (mut out, mut at) = (Vec::new(), 0);
     for gap in SENTENCE.find_iter(body) {
         let end = gap.start() + gap.as_str().trim_end().len();
@@ -374,7 +374,7 @@ fn sentences_with_ends(body: &str) -> Vec<&str> {
 
 /// The words in a sentence that say what it's about. Crudely de-pluralized so "flight" and
 /// "flights" count as the same subject.
-fn subject_words(sentence: &str) -> std::collections::HashSet<String> {
+pub(crate) fn subject_words(sentence: &str) -> std::collections::HashSet<String> {
     sentence
         .split(|c: char| !c.is_alphanumeric())
         .map(|w| w.to_lowercase())
