@@ -71,6 +71,8 @@ pub struct Settings {
     pub firebase_project_id: String,
     /// Not a secret: Firebase web API keys identify the project, security rules do the guarding.
     pub firebase_api_key: String,
+    /// Notes hear the Mac's own sound as the other side of a call, not just the mic.
+    pub notes_call_audio: bool,
     /// From an OAuth "Desktop app" client. Only needed to sign in with Google.
     pub google_client_id: String,
     pub google_client_secret: String,
@@ -103,6 +105,7 @@ impl Default for Settings {
             firebase_api_key: "AIzaSyALock_PLlhBo6sZgQPCPBsoKMQI7b4tko".into(),
             google_client_id: String::new(),
             google_client_secret: String::new(),
+            notes_call_audio: true,
         }
     }
 }

@@ -312,86 +312,88 @@ fn blank_firebase_settings_are_filled_but_real_ones_kept() {
     assert_eq!((mine.firebase_project_id.as_str(), mine.firebase_api_key.as_str()), ("my-own", "mine"));
 }
 
-#[test]
-fn notes_pick_out_what_matters() {
-    use crate::notes::{self, Note, Segment};
-    let seg = |at: f32, who: &str, text: &str| Segment { at, who: who.into(), text: text.into() };
-    let note = Note {
+/// What local Whisper returned for a synthesized launch sync, unpunctuated last line and all.
+fn launch_sync(my_notes: &str, call: bool) -> crate::notes::Note {
+    use crate::notes::{Note, Segment};
+    let said = [
+        (0.0, "them", "Okay, let's get started with the launch sync. The pricing page is still too busy, can we cut it down to three tiers?"),
+        (4.0, "you", "the pricing page is still too busy can we cut it down to three tiers"),
+        (8.5, "you", "Yeah, I think that works. I'll send a new pricing draft by Friday."),
+        (14.8, "them", "Great, on the beta, we decided to push it to October, because the onboarding isn't ready."),
+        (21.8, "them", "What happens to the people on the waitlist though? We need to email them this week and explain the delay. Can you draft that email?"),
+        (31.8, "you", "sure i can do that let's go with three tiers for pricing then anything else no i think that's everything thanks everyone"),
+    ];
+    let mut note = Note {
         title: "Launch sync".into(),
+        mode: if call { "call" } else { "person" }.into(),
+        duration_secs: 42.0,
         created_at: "2026-09-22T15:00:00+00:00".into(),
-        mode: "call".into(),
-        duration_secs: 1500.0,
-        my_notes: "- pricing still open\n- ask about the beta".into(),
-        segments: vec![
-            seg(3.0, "them", "um so the pricing page is still too busy honestly. Can we cut it to three tiers?"),
-            seg(4.0, "you", "the pricing page is still too busy honestly can we cut it to three tiers"),
-            seg(20.0, "you", "Yeah. I'll send the new pricing draft by Friday."),
-            seg(41.0, "them", "Great. We decided to push the beta to October. What happens to the waitlist though?"),
-            seg(60.0, "you", "Let's go with the three tier pricing then."),
-        ],
+        my_notes: my_notes.into(),
+        segments: said
+            .iter()
+            .map(|(at, who, text)| Segment { at: *at, who: if call { *who } else { "room" }.into(), text: (*text).into() })
+            .collect(),
         ..Default::default()
     };
-    let out = notes::summarize(&note, &Profile::default());
-    println!("{out}");
-
-    assert!(out.starts_with("# Launch sync\n"));
-    assert!(out.contains("25 min · On a call"));
-    // Your own notes come first, as written.
-    assert!(out.contains("## Your notes\n- pricing still open\n- ask about the beta"));
-    assert!(out.contains("## Action items\n- I'll send the new pricing draft by Friday\n"));
-    // "Let's go with" settles something, so it's a decision rather than an action.
-    assert!(out.contains("- We decided to push the beta to October (them)"));
-    assert!(out.contains("- Let's go with the three tier pricing then"));
-    assert!(out.contains("## Open questions\n- Can we cut it to three tiers? (them)\n- What happens to the waitlist though? (them)"));
-    assert!(out.contains("## Came up\nPricing, Tier\n"), "number words aren't topics");
-    // Filler is cleaned the same way dictation is, and each line says who spoke and when.
-    assert!(out.contains("Them · 0:03  So the pricing page is still too busy honestly."));
-    assert!(out.contains("You · 0:20  Yeah."));
-    // Your mic picking up their voice through speakers isn't a second copy of what they said.
-    assert!(!out.contains("You · 0:04"));
+    crate::notes::lay_out(&mut note, &Profile::default());
+    note
 }
 
 #[test]
-fn notes_hold_up_on_real_whisper_output() {
-    use crate::notes::{self, Note, Segment};
-    // What local Whisper actually returned for a synthesized meeting, unpunctuated last line included.
-    let said = [
-        (0.0, "Okay, let's get started with the launch sync. The pricing page is still too busy, can we cut it down to three tiers?"),
-        (8.5, "Yeah, I think that works. I'll send a new pricing draft by Friday."),
-        (14.8, "Great, on the beta, we decided to push it to October, because the onboarding isn't ready."),
-        (21.8, "What happens to the people on the waitlist though? We need to email them this week and explain the delay. Can you draft that email?"),
-        (31.8, "sure i can do that let's go with three tiers for pricing then anything else no i think that's everything thanks everyone"),
-    ];
-    let note = Note {
-        mode: "person".into(),
-        created_at: "2026-09-22T15:00:00+00:00".into(),
-        segments: said.iter().map(|(at, t)| Segment { at: *at, who: "room".into(), text: (*t).into() }).collect(),
-        ..Default::default()
-    };
-    let out = notes::summarize(&note, &Profile::default());
+fn enhanced_notes_build_on_what_you_typed() {
+    let note = launch_sync("- pricing still open\n- ask about the beta\n- waitlist?", true);
+    let out = &note.summary;
     println!("{out}");
-    // Opening a meeting isn't something anyone has to do.
-    assert!(!out.contains("- Okay, let's get started"));
-    assert!(out.contains("## Action items\n- I'll send a new pricing draft by Friday\n- We need to email them this week and explain the delay\n- Can you draft that email?\n"));
-    // Lead-ins are dropped, and a run-on is cut down to the point.
-    assert!(out.contains("## Decisions\n- On the beta, we decided to push it to October, because the onboarding isn't ready\n- Let's go with three tiers for pricing\n"));
-    assert!(out.contains("## Open questions\n- The pricing page is still too busy, can we cut it down to three tiers?\n- What happens to the people on the waitlist though?\n"));
+    // Yours stay exactly as typed, each followed by what was said about it, indented.
+    assert!(out.contains(concat!(
+        "- pricing still open\n",
+        "  - The pricing page is still too busy, can we cut it down to three tiers? (them)\n",
+        "  - I'll send a new pricing draft by Friday\n",
+        "- ask about the beta\n",
+        "  - On the beta, we decided to push it to October, because the onboarding isn't ready (them)\n",
+        "- waitlist?\n",
+        "  - What happens to the people on the waitlist though? (them)\n",
+    )));
+    // On screen, the two are told apart the way Granola greys out what it added.
+    let first = &note.enhanced[0];
+    assert!(first.text == "pricing still open" && !first.from_transcript);
+    let detail = &note.enhanced[1];
+    assert!(detail.from_transcript && detail.depth == 1 && detail.who == "them" && detail.at == Some(0.0));
+    // Then what was committed to, settled and left open.
+    assert!(out.contains("## Action items\n- I'll send a new pricing draft by Friday\n- We need to email them this week and explain the delay (them)\n- Can you draft that email? (them)\n"));
+    assert!(out.contains("## Decisions\n- On the beta, we decided to push it to October, because the onboarding isn't ready (them)\n- Let's go with three tiers for pricing\n"));
+    // Opening the meeting isn't a job for anyone.
+    assert!(!out.contains("get started"));
+    // Your mic hearing their voice through the speakers isn't a second copy of it.
+    assert_eq!(out.matches("The pricing page is still too busy").count(), 2, "once under your note, once as a question");
+}
+
+#[test]
+fn with_nothing_typed_the_meeting_becomes_topics() {
+    let out = launch_sync("", true).summary;
+    println!("{out}");
+    assert!(out.contains(concat!(
+        "## Pricing\n",
+        "- The pricing page is still too busy, can we cut it down to three tiers? (them)\n",
+        "- I'll send a new pricing draft by Friday\n",
+        // Whisper's unpunctuated run-on is cut down to its point.
+        "- Let's go with three tiers for pricing\n",
+    )));
+    assert!(out.contains("## Email\n- We need to email them this week and explain the delay (them)\n- Can you draft that email? (them)\n"));
 }
 
 #[test]
 fn notes_in_person_have_no_speaker_labels() {
-    use crate::notes::{self, Note, Segment};
-    let note = Note {
-        mode: "person".into(),
-        created_at: "2026-09-22T15:00:00+00:00".into(),
-        segments: vec![Segment { at: 75.0, who: "room".into(), text: "We need to book the venue this week.".into() }],
-        ..Default::default()
-    };
-    let out = notes::summarize(&Note { title: notes::default_title(&note), ..note }, &Profile::default());
-    assert!(out.starts_with("# Meeting · Sep 22"));
-    assert!(out.contains("In person"));
-    assert!(out.contains("\n1:15  We need to book the venue this week.\n"));
-    assert!(!out.contains("You ·") && !out.contains("Them ·"));
+    let note = launch_sync("- pricing still open", false);
+    assert!(!note.summary.contains("(them)"));
+    let transcript = crate::notes::transcript(&note);
+    assert!(transcript.starts_with("0:00  Okay, let's get started"));
+    assert!(!transcript.contains("You ·") && !transcript.contains("Them ·"));
+    // On a call, the transcript says who, and leaves out the echo.
+    let call = crate::notes::transcript(&launch_sync("", true));
+    assert!(call.starts_with("Them · 0:00  Okay"));
+    assert!(call.contains("\nYou · 0:08  Yeah, I think that works."));
+    assert!(!call.contains("0:04"));
 }
 
 #[test]
@@ -448,7 +450,7 @@ fn notes_end_to_end() {
     }
     note.duration_secs = samples.len() as f32 / 16_000.0;
     note.title = notes::default_title(&note);
-    println!("\n{} pieces in {:.1}s\n\n{}", chunks.len(), started.elapsed().as_secs_f32(), notes::summarize(&note, &Profile::default()));
+    println!("\n{} pieces in {:.1}s\n\n{}", chunks.len(), started.elapsed().as_secs_f32(), { let mut n = note.clone(); notes::lay_out(&mut n, &Profile::default()); n.summary });
     assert!(!note.segments.is_empty());
 }
 

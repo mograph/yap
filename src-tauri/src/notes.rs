@@ -36,10 +36,30 @@ pub struct Note {
     pub segments: Vec<Segment>,
     /// What you typed while it listened: the skeleton of the notes, as in Granola.
     pub my_notes: String,
-    /// The laid-out notes, rebuilt from your notes and the transcript whenever either changes.
+    /// The enhanced notes as Markdown, for copying: yours, with the transcript's details added.
     pub summary: String,
+    /// The same enhanced notes, block by block, each marked yours or from the transcript so the
+    /// two can be told apart on screen, the way Granola greys out what it added.
+    pub enhanced: Vec<Block>,
     /// Something worth knowing, like why the other side of a call wasn't heard.
     pub warning: String,
+}
+
+/// One line of the enhanced notes.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Block {
+    /// "heading", "bullet" or "text"
+    pub kind: String,
+    pub text: String,
+    /// How far a bullet is indented.
+    pub depth: u8,
+    /// Added from the transcript, rather than something you typed.
+    pub from_transcript: bool,
+    /// Where in the recording a transcript line came from, in seconds.
+    pub at: Option<f32>,
+    /// Who said a transcript line: "you", "them" or "room".
+    pub who: String,
 }
 
 // ---------- laying out the notes ----------
@@ -172,90 +192,307 @@ fn without_echo(segments: &[Segment]) -> Vec<Segment> {
         .collect()
 }
 
-/// Lays out a note: your notes first, then what the transcript committed to, settled and left
-/// open, then what came up, then the transcript itself. Plain Markdown, so it pastes anywhere.
-pub fn summarize(note: &Note, profile: &Profile) -> String {
+/// A sentence from the transcript, cleaned up, with what it's about.
+struct Said {
+    text: String,
+    at: f32,
+    who: String,
+    words: HashSet<String>,
+}
+
+fn about(text: &str) -> HashSet<String> {
+    polish::subject_words(text).into_iter().filter(|w| !NOT_TOPICS.contains(&w.as_str())).collect()
+}
+
+/// Every sentence worth keeping, in the order it was said, each once.
+fn said(note: &Note, profile: &Profile) -> Vec<Said> {
     let mut segments = without_echo(&note.segments);
     segments.sort_by(|a, b| a.at.total_cmp(&b.at));
-    // The same cleanup as dictation: fillers, stutters, capitals, your dictionary.
-    let cleaned: Vec<Segment> = segments
-        .iter()
-        .map(|s| Segment { text: polish::local_rules(profile, &s.text).text, ..s.clone() })
-        .filter(|s| !s.text.trim().is_empty())
-        .collect();
-
-    let (mut actions, mut decisions, mut questions) = (Vec::new(), Vec::new(), Vec::new());
     let mut seen = HashSet::new();
-    let mut topics: HashMap<String, usize> = HashMap::new();
-    for seg in &cleaned {
-        for sentence in polish::sentences_with_ends(&seg.text) {
+    let mut out = Vec::new();
+    for seg in segments {
+        // The same cleanup as dictation: fillers, stutters, capitals, your dictionary.
+        let clean = polish::local_rules(profile, &seg.text).text;
+        for sentence in polish::sentences_with_ends(&clean) {
             let sentence = sentence.trim();
-            if sentence.split_whitespace().count() < 4 || !seen.insert(sentence.to_lowercase()) {
-                continue;
-            }
-            let tagged = |s: String| if seg.who == "them" { format!("{s} (them)") } else { s };
-            let is_action = ACTION.is_match(sentence) && !(NOT_ACTION.is_match(sentence) && ACTION.find_iter(sentence).count() == 1);
-            if DECISION.is_match(sentence) {
-                decisions.push(tagged(point(sentence, &DECISION)));
-            } else if is_action {
-                actions.push(tagged(point(sentence, &ACTION)));
-            } else if sentence.ends_with('?') {
-                questions.push(tagged(point(sentence, &ACTION)));
-            }
-        }
-        for w in polish::subject_words(&seg.text) {
-            if !NOT_TOPICS.contains(&w.as_str()) {
-                *topics.entry(w).or_default() += 1;
+            if sentence.split_whitespace().count() >= 4 && seen.insert(sentence.to_lowercase()) {
+                out.push(Said { text: sentence.to_string(), at: seg.at, who: seg.who.clone(), words: about(sentence) });
             }
         }
     }
+    out
+}
 
-    let mut out = String::new();
-    let mode = if note.mode == "call" { "On a call" } else { "In person" };
+/// How much a word says about which sentence is meant: rare words a lot, common ones a little.
+fn rarity(said: &[Said]) -> HashMap<String, f32> {
+    let mut count: HashMap<String, f32> = HashMap::new();
+    for s in said {
+        for w in &s.words {
+            *count.entry(w.clone()).or_default() += 1.0;
+        }
+    }
+    let n = said.len() as f32;
+    count.into_iter().map(|(w, df)| (w, (1.0 + n / df).ln())).collect()
+}
+
+fn overlap(a: &HashSet<String>, b: &HashSet<String>, rarity: &HashMap<String, f32>) -> f32 {
+    a.intersection(b).map(|w| rarity.get(w).copied().unwrap_or(0.0)).sum()
+}
+
+/// Your notes, line by line: headings, bullets (with how deep) and plain lines.
+fn yours(my_notes: &str) -> Vec<(String, String, u8)> {
+    let mut out = Vec::new();
+    for line in my_notes.lines() {
+        let indent = line.chars().take_while(|c| *c == ' ').count() + 4 * line.chars().take_while(|c| *c == '\t').count();
+        let t = line.trim();
+        if t.is_empty() {
+            continue;
+        }
+        let depth = (indent / 2).min(4) as u8;
+        if let Some(h) = t.strip_prefix("### ").or(t.strip_prefix("## ")).or(t.strip_prefix("# ")) {
+            out.push(("heading".into(), h.trim().to_string(), 0));
+        } else if let Some(b) = ["- ", "* ", "• "].iter().find_map(|p| t.strip_prefix(p)) {
+            out.push(("bullet".into(), b.trim().to_string(), depth));
+        } else if t.ends_with(':') && t.split_whitespace().count() <= 6 {
+            out.push(("heading".into(), t.trim_end_matches(':').trim().to_string(), 0));
+        } else {
+            out.push(("text".into(), t.to_string(), depth));
+        }
+    }
+    out
+}
+
+/// A transcript sentence made readable as a note: lead-ins dropped, and an unpunctuated run-on
+/// clipped to the stretch around what it's about, marked with "…" where it was cut.
+fn tidy(text: &str, around: &HashSet<String>) -> String {
+    // A run-on that commits to or settles something: the point is that part, as for action items.
+    if text.split_whitespace().count() > RUN_ON {
+        for re in [&*DECISION, &*ACTION] {
+            if re.is_match(text) {
+                return point(text, re);
+            }
+        }
+    }
+    let text = LEAD_IN.replace(text.trim().trim_end_matches('.'), "").trim().to_string();
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let clipped = if words.len() > RUN_ON {
+        let hit = words.iter().position(|w| {
+            let w: String = w.chars().filter(|c| c.is_alphanumeric()).collect::<String>().to_lowercase();
+            around.contains(&w) || around.contains(w.trim_end_matches('s'))
+        });
+        let from = hit.map_or(0, |i| i.saturating_sub(3));
+        let mut to = (from + 14).min(words.len());
+        // End where the speaker trailed off ("then", "anyway", "thanks"), if that's sooner.
+        let window = words[from..to].join(" ");
+        if let Some(m) = TRAILS_OFF.find(&window) {
+            to = from + window[..m.start()].split_whitespace().count();
+        }
+        let mut piece = words[from..to].join(" ");
+        if from > 0 {
+            piece = format!("…{piece}");
+        }
+        if to < words.len() {
+            piece += "…";
+        }
+        piece
+    } else {
+        text
+    };
+    let mut c = clipped.chars();
+    c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
+}
+
+fn from_transcript(kind: &str, text: String, depth: u8, s: Option<&Said>) -> Block {
+    Block {
+        kind: kind.into(),
+        text,
+        depth,
+        from_transcript: true,
+        at: s.map(|s| s.at),
+        who: s.map(|s| s.who.clone()).unwrap_or_default(),
+    }
+}
+
+/// When you didn't type anything, the meeting in topics: sentences grouped by what they share,
+/// and the ones that say the most about each group.
+fn key_points(said: &[Said], rarity: &HashMap<String, f32>, used: &mut [bool]) -> Vec<Block> {
+    let mut groups: Vec<(HashSet<String>, Vec<usize>)> = Vec::new();
+    for (i, s) in said.iter().enumerate() {
+        let best = groups
+            .iter()
+            .enumerate()
+            .map(|(g, (bag, _))| (g, overlap(&s.words, bag, rarity)))
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .filter(|(_, score)| *score >= 1.0);
+        match best {
+            Some((g, _)) => {
+                groups[g].0.extend(s.words.iter().cloned());
+                groups[g].1.push(i);
+            }
+            None => groups.push((s.words.clone(), vec![i])),
+        }
+    }
+    let mut out = Vec::new();
+    for (bag, members) in groups.iter().filter(|(_, m)| m.len() >= 2).take(6) {
+        // Named for the word that runs through the group, weighted so a rare one beats a common one.
+        let mut weight: HashMap<&String, f32> = HashMap::new();
+        for i in members {
+            for w in &said[*i].words {
+                *weight.entry(w).or_default() += rarity.get(w).copied().unwrap_or(0.0);
+            }
+        }
+        let name = weight.into_iter().max_by(|a, b| a.1.total_cmp(&b.1).then(b.0.cmp(a.0))).map(|(w, _)| w.clone());
+        let Some(name) = name else { continue };
+        let mut c = name.chars();
+        let heading = c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default();
+        out.push(from_transcript("heading", heading, 0, None));
+        let mut best: Vec<usize> = members.clone();
+        // What a sentence says about the group, less for an unpunctuated run-on, which is Whisper
+        // gluing several thoughts together rather than one point.
+        let fit = |i: usize| {
+            let run_on = said[i].text.split_whitespace().count() > RUN_ON;
+            overlap(&said[i].words, bag, rarity) * if run_on { 0.4 } else { 1.0 }
+        };
+        best.sort_by(|a, b| fit(*b).total_cmp(&fit(*a)));
+        best.truncate(3);
+        best.sort();
+        for i in best {
+            used[i] = true;
+            out.push(from_transcript("bullet", tidy(&said[i].text, bag), 0, Some(&said[i])));
+        }
+    }
+    // Too short or too scattered for topics: the lines that carry the most.
+    if out.is_empty() {
+        let mut best: Vec<usize> = (0..said.len()).collect();
+        let weight = |i: usize| said[i].words.iter().map(|w| rarity.get(w).copied().unwrap_or(0.0)).sum::<f32>();
+        best.sort_by(|a, b| weight(*b).total_cmp(&weight(*a)));
+        best.truncate(5);
+        best.sort();
+        if !best.is_empty() {
+            out.push(from_transcript("heading", "Key points".into(), 0, None));
+        }
+        for i in best {
+            used[i] = true;
+            out.push(from_transcript("bullet", tidy(&said[i].text, &said[i].words), 0, Some(&said[i])));
+        }
+    }
+    out
+}
+
+/// Enhanced notes, the way Granola does it: your notes stay as you wrote them, each followed by
+/// what was said about it, and then what was committed to, settled and left open. With nothing
+/// typed, the meeting is grouped into topics instead.
+pub fn enhance(note: &Note, profile: &Profile) -> Vec<Block> {
+    let said = said(note, profile);
+    let rarity = rarity(&said);
+    let mut used = vec![false; said.len()];
+    let mut out = Vec::new();
+
+    let mine = yours(&note.my_notes);
+    for (kind, text, depth) in &mine {
+        out.push(Block { kind: kind.clone(), text: text.clone(), depth: *depth, ..Default::default() });
+        if kind == "heading" {
+            continue;
+        }
+        // The two sentences most about this line, not already used under another one.
+        let words = about(text);
+        let mut matches: Vec<(f32, usize)> = said
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !used[*i])
+            .map(|(i, s)| (overlap(&words, &s.words, &rarity), i))
+            .filter(|(score, _)| *score > 0.0)
+            .collect();
+        matches.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
+        matches.truncate(2);
+        matches.sort_by_key(|(_, i)| *i);
+        for (_, i) in matches {
+            used[i] = true;
+            out.push(from_transcript("bullet", tidy(&said[i].text, &words), depth + 1, Some(&said[i])));
+        }
+    }
+    if mine.is_empty() {
+        out.extend(key_points(&said, &rarity, &mut used));
+    }
+
+    let (mut actions, mut decisions, mut questions) = (Vec::new(), Vec::new(), Vec::new());
+    for s in &said {
+        let is_action = ACTION.is_match(&s.text) && !(NOT_ACTION.is_match(&s.text) && ACTION.find_iter(&s.text).count() == 1);
+        if DECISION.is_match(&s.text) {
+            decisions.push(from_transcript("bullet", point(&s.text, &DECISION), 0, Some(s)));
+        } else if is_action {
+            actions.push(from_transcript("bullet", point(&s.text, &ACTION), 0, Some(s)));
+        } else if s.text.ends_with('?') {
+            questions.push(from_transcript("bullet", point(&s.text, &ACTION), 0, Some(s)));
+        }
+    }
+    for (heading, items) in [("Action items", actions), ("Decisions", decisions), ("Open questions", questions)] {
+        if !items.is_empty() {
+            out.push(from_transcript("heading", heading.into(), 0, None));
+            out.extend(items);
+        }
+    }
+    out
+}
+
+/// The enhanced notes as Markdown, so they paste into Notion, Slack or an email as they look.
+pub fn markdown(note: &Note, blocks: &[Block]) -> String {
     let date = chrono::DateTime::parse_from_rfc3339(&note.created_at)
         .map(|d| d.with_timezone(&chrono::Local).format("%b %-d, %-I:%M %p").to_string())
         .unwrap_or_default();
-    out += &format!("# {}\n{} · {} · {}\n", note.title.trim(), date, duration(note.duration_secs), mode);
-
-    let mine = note.my_notes.trim();
-    if !mine.is_empty() {
-        out += &format!("\n## Your notes\n{mine}\n");
-    }
-    for (heading, items) in [("Action items", &actions), ("Decisions", &decisions), ("Open questions", &questions)] {
-        if !items.is_empty() {
-            out += &format!("\n## {heading}\n");
-            for item in items.iter() {
-                out += &format!("- {}\n", item.trim_end_matches('.'));
+    let two_sides = note.segments.iter().any(|s| s.who == "them");
+    let mut out = format!("# {}\n{} · {}\n", note.title.trim(), date, duration(note.duration_secs));
+    let mut after_heading = false;
+    for b in blocks {
+        match b.kind.as_str() {
+            "heading" => {
+                out += &format!("\n## {}\n", b.text);
+                after_heading = true;
+            }
+            kind => {
+                if !after_heading && out.ends_with('\n') && !out.ends_with("\n\n") && kind == "text" {
+                    out += "\n";
+                }
+                let who = if two_sides && b.from_transcript && b.who == "them" { " (them)" } else { "" };
+                let indent = "  ".repeat(b.depth as usize);
+                if kind == "bullet" {
+                    out += &format!("{indent}- {}{who}\n", b.text);
+                } else {
+                    out += &format!("{indent}{}{who}\n", b.text);
+                }
+                after_heading = false;
             }
         }
     }
-    let mut common: Vec<(String, usize)> = topics.into_iter().filter(|(_, n)| *n >= 2).collect();
-    common.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
-    if !common.is_empty() {
-        let names: Vec<String> = common
-            .iter()
-            .take(6)
-            .map(|(w, _)| {
-                let mut c = w.chars();
-                c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
-            })
-            .collect();
-        out += &format!("\n## Came up\n{}\n", names.join(", "));
-    }
-    if !cleaned.is_empty() {
-        out += "\n## Transcript\n";
-        for seg in &cleaned {
-            let who = match seg.who.as_str() {
-                "you" => "You · ",
-                "them" => "Them · ",
-                _ => "",
-            };
-            out += &format!("{who}{}  {}\n", clock(seg.at), seg.text.trim());
-        }
-    } else {
-        out += "\nNothing was transcribed.\n";
+    if blocks.is_empty() {
+        out += "\nNothing was said yet.\n";
     }
     out
+}
+
+/// Rebuilds a note's enhanced notes, both the blocks for the screen and the Markdown for copying.
+pub fn lay_out(note: &mut Note, profile: &Profile) {
+    note.enhanced = enhance(note, profile);
+    note.summary = markdown(note, &note.enhanced);
+}
+
+/// The transcript as text, for copying on its own.
+pub fn transcript(note: &Note) -> String {
+    let two_sides = note.segments.iter().any(|s| s.who == "them");
+    let mut segments = without_echo(&note.segments);
+    segments.sort_by(|a, b| a.at.total_cmp(&b.at));
+    segments
+        .iter()
+        .map(|s| {
+            let who = match (two_sides, s.who.as_str()) {
+                (true, "you") => "You · ",
+                (true, "them") => "Them · ",
+                _ => "",
+            };
+            format!("{who}{}  {}", clock(s.at), s.text.trim())
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// A default title: the first line of your notes, or when and how it was recorded.

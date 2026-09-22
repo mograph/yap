@@ -390,11 +390,12 @@ fn note_recording(state: State<'_, AppState>) -> Option<String> {
     return None;
 }
 
-/// Starts a note. `mode` is "person" (the mic hears the room) or "call" (the mic is you and the
-/// Mac's sound is them). Always your local model: meetings don't leave the Mac.
+/// Starts a note, or picks one back up with `resume`. `mode` is "call" to hear the Mac's own
+/// sound as the other side, or "person" for the mic alone. Always your local model: meetings
+/// don't leave the Mac.
 #[cfg(desktop)]
 #[tauri::command]
-fn note_start(app: AppHandle, mode: String) -> Result<notes::Note, String> {
+fn note_start(app: AppHandle, mode: String, resume: Option<String>) -> Result<notes::Note, String> {
     let st = app.state::<AppState>();
     if st.recording.lock().unwrap().is_some() {
         return Err("A note is already recording.".into());
@@ -405,13 +406,25 @@ fn note_start(app: AppHandle, mode: String) -> Result<notes::Note, String> {
         return Err("Notes transcribe on this Mac. Download a model in Settings → Ears first.".into());
     }
 
-    let mut note = notes::Note {
-        id: uuid::Uuid::new_v4().to_string(),
-        created_at: chrono::Utc::now().to_rfc3339(),
-        mode: if mode == "call" { "call" } else { "person" }.into(),
-        ..Default::default()
+    let call = mode == "call";
+    let mut note = match &resume {
+        Some(id) => st.notes.lock().unwrap().iter().find(|n| n.id == *id).cloned().ok_or("That note is gone.")?,
+        None => {
+            let mut n = notes::Note {
+                id: uuid::Uuid::new_v4().to_string(),
+                created_at: chrono::Utc::now().to_rfc3339(),
+                ..Default::default()
+            };
+            n.title = notes::default_title(&n);
+            n
+        }
     };
-    note.title = notes::default_title(&note);
+    // Once a note has heard the other side it stays a call, even if it's resumed without.
+    if call || note.mode.is_empty() {
+        note.mode = if call { "call" } else { "person" }.into();
+    }
+    // Picked back up: what's said now comes after what was said before.
+    let offset = note.duration_secs;
     let id = note.id.clone();
 
     let (for_worker, for_levels) = (app.clone(), app.clone());
@@ -427,7 +440,7 @@ fn note_start(app: AppHandle, mode: String) -> Result<notes::Note, String> {
                 return;
             }
         };
-        let segment = notes::Segment { at: chunk.at, who: chunk.who.into(), text };
+        let segment = notes::Segment { at: chunk.at + offset, who: chunk.who.into(), text };
         {
             let mut all = st.notes.lock().unwrap();
             if let Some(n) = all.iter_mut().find(|n| n.id == id) {
@@ -442,9 +455,13 @@ fn note_start(app: AppHandle, mode: String) -> Result<notes::Note, String> {
         let _ = for_levels.emit("yap://note-level", serde_json::json!({ "you": you, "them": them }));
     };
 
-    let (session, warning) = notes::start(note.mode == "call", transcribe, levels)?;
+    let (session, warning) = notes::start(call, transcribe, levels)?;
     note.warning = warning.unwrap_or_default();
-    st.notes.lock().unwrap().insert(0, note.clone());
+    {
+        let mut all = st.notes.lock().unwrap();
+        all.retain(|n| n.id != note.id);
+        all.insert(0, note.clone());
+    }
     st.save_notes()?;
     *st.recording.lock().unwrap() = Some((note.id.clone(), session));
     Ok(note)
@@ -452,7 +469,7 @@ fn note_start(app: AppHandle, mode: String) -> Result<notes::Note, String> {
 
 #[cfg(not(desktop))]
 #[tauri::command]
-fn note_start(_mode: String) -> Result<notes::Note, String> {
+fn note_start(_mode: String, _resume: Option<String>) -> Result<notes::Note, String> {
     Err("Notes record on the desktop app.".into())
 }
 
@@ -470,8 +487,8 @@ async fn note_stop(app: AppHandle) -> Result<notes::Note, String> {
         let note = {
             let mut all = st.notes.lock().unwrap();
             let note = all.iter_mut().find(|n| n.id == id).ok_or("That note is gone.")?;
-            note.duration_secs = secs;
-            note.summary = notes::summarize(note, &profile);
+            note.duration_secs += secs;
+            notes::lay_out(note, &profile);
             note.clone()
         };
         st.save_notes()?;
@@ -498,12 +515,20 @@ fn note_save(state: State<'_, AppState>, id: String, title: String, my_notes: St
         note.my_notes = my_notes;
         note.title = if title.trim().is_empty() { notes::default_title(note) } else { title.trim().to_string() };
         if !live {
-            note.summary = notes::summarize(note, &profile);
+            notes::lay_out(note, &profile);
         }
         note.clone()
     };
     state.save_notes()?;
     Ok(note)
+}
+
+/// The transcript on its own, as text, for copying.
+#[tauri::command]
+fn note_transcript(state: State<'_, AppState>, id: String) -> Result<String, String> {
+    let all = state.notes.lock().unwrap();
+    let note = all.iter().find(|n| n.id == id).ok_or("That note is gone.")?;
+    Ok(notes::transcript(note))
 }
 
 #[tauri::command]
@@ -1168,6 +1193,7 @@ pub fn run() {
             note_stop,
             note_save,
             note_delete,
+            note_transcript,
             note_recording,
             download_model,
             delete_model,

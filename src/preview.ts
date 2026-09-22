@@ -7,6 +7,7 @@ import App from "./App.svelte";
 import Overlay from "./Overlay.svelte";
 import type { Dictation, Edit, Kind, Note, Snapshot } from "./lib/api";
 import { app, type View } from "./lib/state.svelte";
+import fixture from "./preview/notes-fixture.json";
 
 const params = new URLSearchParams(location.search);
 const ago = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
@@ -139,6 +140,7 @@ const snapshot: Snapshot = {
     cloudSync: false,
     firebaseProjectId: "",
     firebaseApiKey: "",
+    notesCallAudio: true,
     googleClientId: "",
     googleClientSecret: "",
   },
@@ -172,57 +174,13 @@ const snapshot: Snapshot = {
   envKey: false,
 };
 
-// Notes: one finished call, one in person, and (with ?recording) one still going.
-const summary = `# Launch sync
-Sep 22, 11:00 AM · 25 min · On a call
-
-## Your notes
-- pricing still open
-- ask about the beta
-
-## Action items
-- I'll send a new pricing draft by Friday
-- We need to email them this week and explain the delay
-- Can you draft that email? (them)
-
-## Decisions
-- On the beta, we decided to push it to October, because the onboarding isn't ready (them)
-- Let's go with three tiers for pricing
-
-## Open questions
-- The pricing page is still too busy, can we cut it down to three tiers? (them)
-- What happens to the people on the waitlist though? (them)
-
-## Came up
-Pricing, Draft, Tier`;
-const segs = (who: "you" | "them" | "room", lines: [number, string][]) => lines.map(([at, text]) => ({ at, who, text }));
+// Notes, straight from the Rust enhance run over real Whisper output (see tests.rs `launch_sync`):
+// one call you typed notes in, one in-person meeting you didn't, and with ?recording one going now.
 const notes: Note[] = [
-  {
-    id: "n1",
-    title: "Launch sync",
-    createdAt: ago(2),
-    mode: "call",
-    durationSecs: 1500,
-    myNotes: "- pricing still open\n- ask about the beta",
-    summary,
-    warning: "",
-    segments: [
-      ...segs("them", [[0, "Okay, let's get started with the launch sync. The pricing page is still too busy, can we cut it down to three tiers?"], [14.8, "Great, on the beta, we decided to push it to October, because the onboarding isn't ready."], [21.8, "What happens to the people on the waitlist though? We need to email them this week and explain the delay. Can you draft that email?"]]),
-      ...segs("you", [[8.5, "Yeah, I think that works. I'll send a new pricing draft by Friday."], [31.8, "Sure, I can do that. Let's go with three tiers for pricing then."]]),
-    ],
-  },
-  {
-    id: "n2",
-    title: "Venue walkthrough",
-    createdAt: ago(30),
-    mode: "person",
-    durationSecs: 780,
-    myNotes: "",
-    summary: "# Venue walkthrough\nSep 21 · 13 min · In person\n\n## Action items\n- We need to book the venue this week\n\n## Came up\nVenue, Catering",
-    warning: "",
-    segments: segs("room", [[75, "We need to book the venue this week."], [140, "Catering can start at six."]]),
-  },
+  { ...(fixture.typed as Note), id: "n1", createdAt: ago(2) },
+  { ...(fixture.blank as Note), id: "n2", title: "Pricing chat", createdAt: ago(30) },
 ];
+const segs = (who: "you" | "them" | "room", lines: [number, string][]) => lines.map(([at, text]) => ({ at, who, text }));
 if (params.has("recording")) {
   notes.unshift({
     id: "live",
@@ -230,8 +188,9 @@ if (params.has("recording")) {
     createdAt: ago(0.06),
     mode: "call",
     durationSecs: 0,
-    myNotes: "- header too heavy\n- check the empty states",
+    myNotes: "- header too heavy\n- check the empty states\n- ",
     summary: "",
+    enhanced: [],
     warning: "",
     segments: [
       ...segs("them", [[2, "Okay so first thing, the header feels too heavy. It's competing with the logo."], [41, "Can we try it without the gradient?"]]),

@@ -1,0 +1,362 @@
+{
+ "blank": {
+  "createdAt": "2026-09-22T15:00:00+00:00",
+  "durationSecs": 42.0,
+  "enhanced": [
+   {
+    "at": null,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "heading",
+    "text": "Pricing",
+    "who": ""
+   },
+   {
+    "at": 0.0,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "The pricing page is still too busy, can we cut it down to three tiers?",
+    "who": "room"
+   },
+   {
+    "at": 4.0,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "The pricing page is still too busy can we cut it down to three tiers",
+    "who": "room"
+   },
+   {
+    "at": 8.5,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "I'll send a new pricing draft by Friday",
+    "who": "room"
+   },
+   {
+    "at": null,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "heading",
+    "text": "Email",
+    "who": ""
+   },
+   {
+    "at": 21.799999237060547,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "We need to email them this week and explain the delay",
+    "who": "room"
+   },
+   {
+    "at": 21.799999237060547,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "Can you draft that email?",
+    "who": "room"
+   },
+   {
+    "at": null,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "heading",
+    "text": "Action items",
+    "who": ""
+   },
+   {
+    "at": 8.5,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "I'll send a new pricing draft by Friday",
+    "who": "room"
+   },
+   {
+    "at": 21.799999237060547,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "We need to email them this week and explain the delay",
+    "who": "room"
+   },
+   {
+    "at": 21.799999237060547,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "Can you draft that email?",
+    "who": "room"
+   },
+   {
+    "at": null,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "heading",
+    "text": "Decisions",
+    "who": ""
+   },
+   {
+    "at": 14.800000190734863,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "On the beta, we decided to push it to October, because the onboarding isn't ready",
+    "who": "room"
+   },
+   {
+    "at": 31.799999237060547,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "Let's go with three tiers for pricing",
+    "who": "room"
+   },
+   {
+    "at": null,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "heading",
+    "text": "Open questions",
+    "who": ""
+   },
+   {
+    "at": 0.0,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "The pricing page is still too busy, can we cut it down to three tiers?",
+    "who": "room"
+   },
+   {
+    "at": 21.799999237060547,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "What happens to the people on the waitlist though?",
+    "who": "room"
+   }
+  ],
+  "id": "",
+  "mode": "person",
+  "myNotes": "",
+  "segments": [
+   {
+    "at": 0.0,
+    "text": "Okay, let's get started with the launch sync. The pricing page is still too busy, can we cut it down to three tiers?",
+    "who": "room"
+   },
+   {
+    "at": 4.0,
+    "text": "the pricing page is still too busy can we cut it down to three tiers",
+    "who": "room"
+   },
+   {
+    "at": 8.5,
+    "text": "Yeah, I think that works. I'll send a new pricing draft by Friday.",
+    "who": "room"
+   },
+   {
+    "at": 14.800000190734863,
+    "text": "Great, on the beta, we decided to push it to October, because the onboarding isn't ready.",
+    "who": "room"
+   },
+   {
+    "at": 21.799999237060547,
+    "text": "What happens to the people on the waitlist though? We need to email them this week and explain the delay. Can you draft that email?",
+    "who": "room"
+   },
+   {
+    "at": 31.799999237060547,
+    "text": "sure i can do that let's go with three tiers for pricing then anything else no i think that's everything thanks everyone",
+    "who": "room"
+   }
+  ],
+  "summary": "# Launch sync\nSep 22, 11:00 AM · 1 min\n\n## Pricing\n- The pricing page is still too busy, can we cut it down to three tiers?\n- The pricing page is still too busy can we cut it down to three tiers\n- I'll send a new pricing draft by Friday\n\n## Email\n- We need to email them this week and explain the delay\n- Can you draft that email?\n\n## Action items\n- I'll send a new pricing draft by Friday\n- We need to email them this week and explain the delay\n- Can you draft that email?\n\n## Decisions\n- On the beta, we decided to push it to October, because the onboarding isn't ready\n- Let's go with three tiers for pricing\n\n## Open questions\n- The pricing page is still too busy, can we cut it down to three tiers?\n- What happens to the people on the waitlist though?\n",
+  "title": "Launch sync",
+  "warning": ""
+ },
+ "typed": {
+  "createdAt": "2026-09-22T15:00:00+00:00",
+  "durationSecs": 42.0,
+  "enhanced": [
+   {
+    "at": null,
+    "depth": 0,
+    "fromTranscript": false,
+    "kind": "bullet",
+    "text": "pricing still open",
+    "who": ""
+   },
+   {
+    "at": 0.0,
+    "depth": 1,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "The pricing page is still too busy, can we cut it down to three tiers?",
+    "who": "them"
+   },
+   {
+    "at": 8.5,
+    "depth": 1,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "I'll send a new pricing draft by Friday",
+    "who": "you"
+   },
+   {
+    "at": null,
+    "depth": 0,
+    "fromTranscript": false,
+    "kind": "bullet",
+    "text": "ask about the beta",
+    "who": ""
+   },
+   {
+    "at": 14.800000190734863,
+    "depth": 1,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "On the beta, we decided to push it to October, because the onboarding isn't ready",
+    "who": "them"
+   },
+   {
+    "at": null,
+    "depth": 0,
+    "fromTranscript": false,
+    "kind": "bullet",
+    "text": "waitlist?",
+    "who": ""
+   },
+   {
+    "at": 21.799999237060547,
+    "depth": 1,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "What happens to the people on the waitlist though?",
+    "who": "them"
+   },
+   {
+    "at": null,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "heading",
+    "text": "Action items",
+    "who": ""
+   },
+   {
+    "at": 8.5,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "I'll send a new pricing draft by Friday",
+    "who": "you"
+   },
+   {
+    "at": 21.799999237060547,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "We need to email them this week and explain the delay",
+    "who": "them"
+   },
+   {
+    "at": 21.799999237060547,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "Can you draft that email?",
+    "who": "them"
+   },
+   {
+    "at": null,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "heading",
+    "text": "Decisions",
+    "who": ""
+   },
+   {
+    "at": 14.800000190734863,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "On the beta, we decided to push it to October, because the onboarding isn't ready",
+    "who": "them"
+   },
+   {
+    "at": 31.799999237060547,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "Let's go with three tiers for pricing",
+    "who": "you"
+   },
+   {
+    "at": null,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "heading",
+    "text": "Open questions",
+    "who": ""
+   },
+   {
+    "at": 0.0,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "The pricing page is still too busy, can we cut it down to three tiers?",
+    "who": "them"
+   },
+   {
+    "at": 21.799999237060547,
+    "depth": 0,
+    "fromTranscript": true,
+    "kind": "bullet",
+    "text": "What happens to the people on the waitlist though?",
+    "who": "them"
+   }
+  ],
+  "id": "",
+  "mode": "call",
+  "myNotes": "- pricing still open\n- ask about the beta\n- waitlist?",
+  "segments": [
+   {
+    "at": 0.0,
+    "text": "Okay, let's get started with the launch sync. The pricing page is still too busy, can we cut it down to three tiers?",
+    "who": "them"
+   },
+   {
+    "at": 4.0,
+    "text": "the pricing page is still too busy can we cut it down to three tiers",
+    "who": "you"
+   },
+   {
+    "at": 8.5,
+    "text": "Yeah, I think that works. I'll send a new pricing draft by Friday.",
+    "who": "you"
+   },
+   {
+    "at": 14.800000190734863,
+    "text": "Great, on the beta, we decided to push it to October, because the onboarding isn't ready.",
+    "who": "them"
+   },
+   {
+    "at": 21.799999237060547,
+    "text": "What happens to the people on the waitlist though? We need to email them this week and explain the delay. Can you draft that email?",
+    "who": "them"
+   },
+   {
+    "at": 31.799999237060547,
+    "text": "sure i can do that let's go with three tiers for pricing then anything else no i think that's everything thanks everyone",
+    "who": "you"
+   }
+  ],
+  "summary": "# Launch sync\nSep 22, 11:00 AM · 1 min\n- pricing still open\n  - The pricing page is still too busy, can we cut it down to three tiers? (them)\n  - I'll send a new pricing draft by Friday\n- ask about the beta\n  - On the beta, we decided to push it to October, because the onboarding isn't ready (them)\n- waitlist?\n  - What happens to the people on the waitlist though? (them)\n\n## Action items\n- I'll send a new pricing draft by Friday\n- We need to email them this week and explain the delay (them)\n- Can you draft that email? (them)\n\n## Decisions\n- On the beta, we decided to push it to October, because the onboarding isn't ready (them)\n- Let's go with three tiers for pricing\n\n## Open questions\n- The pricing page is still too busy, can we cut it down to three tiers? (them)\n- What happens to the people on the waitlist though? (them)\n",
+  "title": "Launch sync",
+  "warning": ""
+ }
+}
