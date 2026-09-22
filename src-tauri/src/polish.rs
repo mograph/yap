@@ -218,18 +218,39 @@ fn announces(part: &str) -> bool {
     ANNOUNCE.is_match(part) && ANNOUNCER.is_match(part)
 }
 
-fn bullet(item: &str) -> String {
+fn bullet(item: &str, prefs: &store::ListPreferences) -> String {
     let item = item.trim().trim_end_matches(['.', ',', ';']).trim();
-    let mut chars = item.chars();
-    match chars.next() {
-        Some(first) => format!("- {}{}", first.to_uppercase(), chars.as_str()),
-        None => String::new(),
+    if item.is_empty() {
+        return String::new();
+    }
+
+    let bullet_char = match prefs.bullet_style.as_str() {
+        "dash" => "-",
+        "asterisk" => "*",
+        "bullet" => "•",
+        "number" => "NUM",  // Handled specially in list formatting
+        custom => custom,
+    };
+
+    // Format with bullet and indent
+    let indent = " ".repeat(prefs.indent_spaces as usize);
+
+    if prefs.bullet_style == "number" {
+        // Will be handled with index in the list formatting function
+        format!("{}{}", indent, item)
+    } else {
+        // Capitalize first letter for readability
+        let mut chars = item.chars();
+        match chars.next() {
+            Some(first) => format!("{}{} {}{}", indent, bullet_char, first.to_uppercase(), chars.as_str()),
+            None => String::new(),
+        }
     }
 }
 
 /// A bullet-list version of a dictation that runs through several things, or "" if it doesn't
 /// look like one. Deliberately generous: in "ask" mode you decide, so a wrong guess costs a keypress.
-pub(crate) fn as_list(text: &str) -> String {
+pub(crate) fn as_list(text: &str, prefs: &store::ListPreferences) -> String {
     let text = text.trim();
     if text.is_empty() || text.contains("\n- ") {
         return String::new();
@@ -325,14 +346,45 @@ pub(crate) fn as_list(text: &str) -> String {
             return String::new();
         }
     }
-    let bullets: Vec<String> = items.iter().map(|i| bullet(i)).filter(|b| !b.is_empty()).collect();
+    let mut bullets: Vec<String> = Vec::new();
+    for (idx, item) in items.iter().enumerate() {
+        let mut formatted = bullet(item, prefs);
+        if formatted.is_empty() {
+            continue;
+        }
+        // Handle numbered lists
+        if prefs.bullet_style == "number" && prefs.allow_numbered {
+            let indent = " ".repeat(prefs.indent_spaces as usize);
+            formatted = format!("{}{}. {}", indent, idx + 1, item.trim().trim_end_matches(['.', ',', ';']));
+        }
+        bullets.push(formatted);
+    }
+
     if bullets.len() < 3 {
         return String::new();
     }
-    match lead.is_empty() {
-        true => bullets.join("\n"),
-        false => format!("{}:\n{}", lead.join(", ").trim_end_matches([',', '.', ';', ':']), bullets.join("\n")),
+
+    // Build the final list with spacing and intro text
+    let spacing = if prefs.item_spacing == "double" { "\n" } else { "" };
+    let sep = if spacing.is_empty() { "\n" } else { "\n\n" };
+    let list_body = bullets.join(&sep);
+
+    let mut result = String::new();
+
+    // Add intro text if provided
+    if !prefs.intro_text.is_empty() {
+        result.push_str(&prefs.intro_text);
+        result.push('\n');
     }
+
+    // Add lead-in if present
+    if !lead.is_empty() {
+        result.push_str(&lead.join(", ").trim_end_matches([',', '.', ';', ':']));
+        result.push('\n');
+    }
+
+    result.push_str(&list_body);
+    result
 }
 
 /// Words that say nothing about what a sentence is about.
@@ -693,7 +745,7 @@ pub async fn run(settings: &Settings, profile: &Profile, raw: &str) -> Dictation
     let mut list = if profile.casual {
         String::new()
     } else if engine == "local rules" {
-        let listed = as_list(&cleaned.text);
+        let listed = as_list(&cleaned.text, &settings.list_preferences);
         if listed.is_empty() { as_groups(&cleaned.text) } else { listed }
     } else {
         cleaned.list.trim().to_string()

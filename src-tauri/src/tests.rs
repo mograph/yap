@@ -5,24 +5,26 @@ use crate::stt;
 
 #[test]
 fn offers_a_list_when_you_run_through_things() {
+    let prefs = store::ListPreferences::default();
     assert_eq!(
-        polish::as_list("Today I fixed the login bug, shipped the icons, and merged everything."),
+        polish::as_list("Today I fixed the login bug, shipped the icons, and merged everything.", &prefs),
         "- Today I fixed the login bug\n- Shipped the icons\n- Merged everything"
     );
-    assert_eq!(polish::as_list("Groceries: milk, eggs, and bread"), "Groceries:\n- Milk\n- Eggs\n- Bread");
+    assert_eq!(polish::as_list("Groceries: milk, eggs, and bread", &prefs), "Groceries:\n- Milk\n- Eggs\n- Bread");
     assert_eq!(
-        polish::as_list("First, call Sam. Then send the deck. Also book the room."),
+        polish::as_list("First, call Sam. Then send the deck. Also book the room.", &prefs),
         "- Call Sam\n- Send the deck\n- Book the room"
     );
     // ordinary sentences stay sentences
-    assert_eq!(polish::as_list("I think, honestly, we should just go."), "");
-    assert_eq!(polish::as_list("Meet at 10:30, bring snacks"), "");
-    assert_eq!(polish::as_list("Can you send me the deck by Wednesday?"), "");
+    assert_eq!(polish::as_list("I think, honestly, we should just go.", &prefs), "");
+    assert_eq!(polish::as_list("Meet at 10:30, bring snacks", &prefs), "");
+    assert_eq!(polish::as_list("Can you send me the deck by Wednesday?", &prefs), "");
 }
 
 #[test]
 fn talking_in_commas_is_not_a_list() {
     // People pause constantly. Commas on their own are no evidence of a list at all.
+    let prefs = store::ListPreferences::default();
     let not_a_list = [
         "Well, right now, every list is breaking up, it's individual words, rather than, like, actually grouping or having any logic around it.",
         "I went to the store, and it was closed, so I came home, which was annoying",
@@ -30,24 +32,25 @@ fn talking_in_commas_is_not_a_list() {
         "Yeah, I mean, it's fine, it's just, it's not what I expected, honestly",
     ];
     for said in not_a_list {
-        assert_eq!(polish::as_list(said), "", "should not be a list: {said}");
+        assert_eq!(polish::as_list(said, &prefs), "", "should not be a list: {said}");
     }
 }
 
 #[test]
 fn a_spoken_lead_in_is_a_lead_in_not_a_bullet() {
     // Saying you're about to make a list shouldn't put the announcement in the list.
+    let prefs = store::ListPreferences::default();
     assert_eq!(
-        polish::as_list("Okay so I'm gonna make a list here, I wanna do these tasks, um, fix the login bug, add the settings page, and then write some tests"),
+        polish::as_list("Okay so I'm gonna make a list here, I wanna do these tasks, um, fix the login bug, add the settings page, and then write some tests", &prefs),
         "Okay so I'm gonna make a list here, I wanna do these tasks:\n- Fix the login bug\n- Add the settings page\n- Write some tests"
     );
     assert_eq!(
-        polish::as_list("I'm giving feedback on these, the copy is too long, the button is the wrong colour, and the spacing feels cramped"),
+        polish::as_list("I'm giving feedback on these, the copy is too long, the button is the wrong colour, and the spacing feels cramped", &prefs),
         "I'm giving feedback on these:\n- The copy is too long\n- The button is the wrong colour\n- The spacing feels cramped"
     );
     // an item that happens to mention notes is still an item
     assert_eq!(
-        polish::as_list("Give Sam the meeting notes, book the room, and order lunch"),
+        polish::as_list("Give Sam the meeting notes, book the room, and order lunch", &prefs),
         "- Give Sam the meeting notes\n- Book the room\n- Order lunch"
     );
 }
@@ -55,20 +58,23 @@ fn a_spoken_lead_in_is_a_lead_in_not_a_bullet() {
 #[test]
 fn one_bullet_per_thing_not_per_comma() {
     // The tail of a thought belongs to the thought, not to a bullet of its own.
+    let prefs = store::ListPreferences::default();
     assert_eq!(
-        polish::as_list("I fixed the login bug, which kept logging people out, shipped the icons, and merged everything"),
+        polish::as_list("I fixed the login bug, which kept logging people out, shipped the icons, and merged everything", &prefs),
         "- I fixed the login bug, which kept logging people out\n- Shipped the icons\n- Merged everything"
     );
     // three scraps around a lead-in still aren't a list
-    assert_eq!(polish::as_list("So I'm gonna make a list, um, yeah, okay"), "");
+    assert_eq!(polish::as_list("So I'm gonna make a list, um, yeah, okay", &prefs), "");
 }
 
-#[test]
+f"#[test]
 fn an_item_that_took_a_few_sentences_stays_one_item() {
     // Going item by item: the cue starts the item, the rest of what you said about it goes with it.
+    let prefs = store::ListPreferences::default();
     assert_eq!(
         polish::as_list(
-            "Okay I'm gonna make a list, I'm giving feedback on the design. First thing, the header feels too heavy. It's competing with the logo. Second, the sidebar spacing is too tight. And another thing, the button is too orange. I'd tone it down a bit."
+            "Okay I'm gonna make a list, I'm giving feedback on the design. First thing, the header feels too heavy. It's competing with the logo. Second, the sidebar spacing is too tight. And another thing, the button is too orange. I'd tone it down a bit.",
+            &prefs
         ),
         concat!(
             "Okay I'm gonna make a list, I'm giving feedback on the design:\n",
@@ -79,7 +85,7 @@ fn an_item_that_took_a_few_sentences_stays_one_item() {
     );
     // No cues at all, but they announced it and took a sentence per thing.
     assert_eq!(
-        polish::as_list("I've got a few things. The header feels too heavy. The sidebar spacing is too tight. The button is too orange."),
+        polish::as_list("I've got a few things. The header feels too heavy. The sidebar spacing is too tight. The button is too orange.", &prefs),
         concat!(
             "I've got a few things:\n",
             "- The header feels too heavy\n",
@@ -88,7 +94,7 @@ fn an_item_that_took_a_few_sentences_stays_one_item() {
         )
     );
     // A plain paragraph is still a paragraph.
-    assert_eq!(polish::as_list("The header feels too heavy. It's competing with the logo. I'd tone it down a bit."), "");
+    assert_eq!(polish::as_list("The header feels too heavy. It's competing with the logo. I'd tone it down a bit.", &prefs), "");
 }
 
 #[test]
@@ -131,6 +137,7 @@ fn casual_mode_keeps_it_a_message() {
 /// ordinary rambling into a bullet per fragment.
 #[test]
 fn rambling_speech_is_not_chopped_into_fragments() {
+    let prefs = store::ListPreferences::default();
     let prose = [
         // Prose across several sentences: commas here are breath, not item boundaries.
         "Fresh or living where there's, like, a random gray bar going down on top of the white, it doesn't make any sense. It needs to be, like, as a principal designer, we need to go through and make sure the animations, as a motion designer, that it makes sense.",
@@ -149,7 +156,7 @@ fn rambling_speech_is_not_chopped_into_fragments() {
         "Can you make the state go to the three, not the individual one, and then go to the next part instead of the interspatial step?",
     ];
     for said in prose {
-        assert_eq!(polish::as_list(said), "", "should not be a list: {said}");
+        assert_eq!(polish::as_list(said, &prefs), "", "should not be a list: {said}");
     }
 }
 
