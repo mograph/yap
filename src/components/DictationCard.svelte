@@ -89,9 +89,14 @@
   }
 
   async function copy() {
-    await api.copy(item.text);
-    copied = true;
-    setTimeout(() => (copied = false), 1400);
+    try {
+      await api.copy(item.text);
+      say("✓ Copied to clipboard");
+      copied = true;
+      setTimeout(() => (copied = false), 1400);
+    } catch (e) {
+      say("✗ Copy failed: " + String(e));
+    }
   }
 </script>
 

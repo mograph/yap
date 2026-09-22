@@ -40,6 +40,13 @@
       Hold {#each talkKey(snap.settings, snap.platform) as k, i (i)}<span class="kbd">{k}</span>{/each} anywhere and just talk.
       Yap types it the way you'd type it.
     </p>
+    <div class="status-badge">
+      {#if snap.settings.autoPaste}
+        <span class="badge auto-paste">✓ Auto-paste</span>
+      {:else}
+        <span class="badge copy-only">📋 Copy only</span>
+      {/if}
+    </div>
   </div>
   <div class="mic-wrap">
     <button
@@ -95,6 +102,17 @@
   .copy h1 { font-size: 36px; font-weight: 750; letter-spacing: -0.03em; }
   .copy p { margin-top: 8px; font-size: 15.5px; color: var(--ink-2); max-width: 44ch; line-height: 1.7; }
   .copy .kbd { margin: 0 2px; vertical-align: 1px; }
+
+  .status-badge { margin-top: 12px; }
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge.auto-paste { background: rgba(40, 167, 69, 0.15); color: #28a745; }
+  .badge.copy-only { background: rgba(23, 162, 184, 0.15); color: #17a2b8; }
 
   .mic-wrap { display: grid; justify-items: center; gap: 10px; flex: none; }
   .mic {
