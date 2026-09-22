@@ -466,7 +466,7 @@
         <div class="choice">
           <b>Sign in with Google</b>
           <span class="muted small">Your account keeps your library apart from everyone else's, so a weak passphrase can't expose it. Needs a Desktop OAuth client below.</span>
-          <button class="btn sm" onclick={signIn} disabled={cloudBusy || !canSignIn}>Sign in with Google</button>
+          <button class="btn sm" onclick={signIn} disabled={cloudBusy || !canSignIn}>Sign in</button>
           {#if !canSignIn}<span class="muted small">Add a client ID and secret under Firebase details first.</span>{/if}
         </div>
       </div>
@@ -476,7 +476,9 @@
           <b>{cloud.anonymous ? "Passphrase only" : "Signed in"}</b>
           <span class="muted small">{cloud.anonymous ? "This computer is registered without an account." : cloud.email}</span>
         </span>
-        <button class="btn ghost sm" onclick={forget} disabled={cloudBusy}>Forget this computer</button>
+        {#if !cloud.anonymous}
+          <button class="btn ghost sm" onclick={forget} disabled={cloudBusy}>Sign out</button>
+        {/if}
       </div>
     {/if}
 
