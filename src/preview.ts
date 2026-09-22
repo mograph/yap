@@ -138,6 +138,13 @@ const snapshot: Snapshot = {
     sounds: true,
     onboarded: !params.get("onboarding"),
     lists: "ask",
+    listPreferences: {
+      bulletStyle: "dash",
+      introText: "",
+      itemSpacing: "single",
+      allowNumbered: false,
+      indentSpaces: 2,
+    },
     libraryFolder: "",
     cloudSync: false,
     firebaseProjectId: "",

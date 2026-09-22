@@ -896,14 +896,13 @@ fn copy_text(text: String) -> Result<(), String> {
 #[tauri::command]
 fn export_settings(app: AppHandle) -> Result<store::Settings, String> {
     let st = app.state::<AppState>();
-    Ok(st.settings.lock().unwrap().clone())
+    let settings = st.settings.lock().unwrap().clone();
+    Ok(settings)
 }
 
 #[tauri::command]
-fn import_settings(app: AppHandle, settings: store::Settings) -> Result<(), String> {
-    let st = app.state::<AppState>();
-    *st.settings.lock().unwrap() = settings;
-    st.save_settings()
+fn import_settings(app: AppHandle, state: State<'_, AppState>, settings: store::Settings) -> Result<(), String> {
+    save_settings(app, state, settings)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

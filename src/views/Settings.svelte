@@ -188,18 +188,11 @@
   }
 
   async function exportSettings() {
-    const { save } = await import("@tauri-apps/plugin-dialog");
-    const { writeTextFile } = await import("@tauri-apps/api/fs");
-    const path = await save({
-      defaultPath: "yap-settings.json",
-      filters: [{ name: "Yap Settings", extensions: ["json"] }],
-    });
-    if (!path) return;
     try {
       const settings = await api.exportSettings();
       const json = JSON.stringify(settings, null, 2);
-      await writeTextFile(path, json);
-      settingsStatus = "Settings exported to " + path.split("\\").pop();
+      await navigator.clipboard.writeText(json);
+      settingsStatus = "Settings copied to clipboard";
       setTimeout(() => (settingsStatus = ""), 3000);
     } catch (e) {
       settingsStatus = "Export failed: " + String(e);
@@ -207,20 +200,12 @@
   }
 
   async function importSettings() {
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const { readTextFile } = await import("@tauri-apps/api/fs");
-    const path = await open({
-      multiple: false,
-      directory: false,
-      filters: [{ name: "Yap Settings", extensions: ["json"] }],
-    });
-    if (typeof path !== "string") return;
     try {
-      const content = await readTextFile(path);
-      const settings = JSON.parse(content);
+      const json = await navigator.clipboard.readText();
+      const settings = JSON.parse(json);
       await api.importSettings(settings);
       Object.assign(s, settings);
-      settingsStatus = "Settings imported successfully";
+      settingsStatus = "Settings imported from clipboard";
       setTimeout(() => (settingsStatus = ""), 3000);
     } catch (e) {
       settingsStatus = "Import failed: " + String(e);

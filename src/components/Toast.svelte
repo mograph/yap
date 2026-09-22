@@ -2,9 +2,7 @@
   import { onMount } from "svelte";
   import { slide } from "svelte/transition";
 
-  export let message: string;
-  export let type: "success" | "error" | "info" = "info";
-  export let duration: number = 2000;
+  let { message, type = "info", duration = 2000 }: { message: string; type?: "success" | "error" | "info"; duration?: number } = $props();
 
   let visible = $state(true);
 

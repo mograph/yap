@@ -64,7 +64,7 @@
         {/if}
         {#if selected.speed}
           <span class="spacer">·</span>
-          <span class="speed" class={selected.speed}>{selected.speed}</span>
+          <span class="speed {selected.speed}">{selected.speed}</span>
         {/if}
       </span>
     </span>
@@ -99,7 +99,7 @@
                 {/if}
                 {#if m.speed}
                   <span class="spacer">·</span>
-                  <span class="speed" class={m.speed} title="Processing speed">{m.speed}</span>
+                  <span class="speed {m.speed}" title="Processing speed">{m.speed}</span>
                 {/if}
               </span>
               <span class="note">{m.note}</span>
