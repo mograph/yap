@@ -280,6 +280,39 @@ fn a_spoken_brain_dump_becomes_tasks() {
 }
 
 #[test]
+fn a_dictation_made_during_a_sync_survives_it() {
+    let d = |id: &str, at: &str| Dictation { id: id.into(), created_at: at.into(), ..Default::default() };
+    let ids = |h: &[Dictation]| {
+        let mut v = h.iter().map(|x| x.id.clone()).collect::<Vec<_>>();
+        v.sort();
+        v
+    };
+
+    // The sync starts from a snapshot holding "a", and the cloud holds "b".
+    let (mut p, mut h, mut del) = (Profile::default(), vec![d("a", "2026-09-20T10:00:00Z")], Vec::new());
+    let cloud = library::Library::new(&Profile::default(), &[d("b", "2026-09-19T10:00:00Z")], &[]);
+    let (_, synced) = library::merge(Some(&cloud), &mut p, &mut h, &mut del);
+
+    // While it was on the network, "c" was dictated here. Folding the result in keeps it.
+    let (mut now_p, mut now_h, mut now_del) =
+        (Profile::default(), vec![d("c", "2026-09-21T10:00:00Z"), d("a", "2026-09-20T10:00:00Z")], Vec::new());
+    library::merge(Some(&synced), &mut now_p, &mut now_h, &mut now_del);
+    assert_eq!(ids(&now_h), ["a", "b", "c"]);
+}
+
+#[test]
+fn blank_firebase_settings_are_filled_but_real_ones_kept() {
+    let mut blank = store::Settings { firebase_project_id: "".into(), firebase_api_key: "  ".into(), ..Default::default() };
+    blank.fill_blank_firebase();
+    assert_eq!(blank.firebase_project_id, "yap-tinkerstudio");
+    assert!(blank.firebase_api_key.starts_with("AIza"));
+
+    let mut mine = store::Settings { firebase_project_id: "my-own".into(), firebase_api_key: "mine".into(), ..Default::default() };
+    mine.fill_blank_firebase();
+    assert_eq!((mine.firebase_project_id.as_str(), mine.firebase_api_key.as_str()), ("my-own", "mine"));
+}
+
+#[test]
 fn library_import_adds_and_never_removes() {
     let mut mine = Profile::default();
     let mut theirs = Profile::default();
@@ -477,4 +510,94 @@ fn compare_models() {
         }
     }
     assert!(ran > 0, "no models found under {}/models", data.display());
+}
+
+/// Feeds sentences through the Mac's cleanup and list logic and writes what came out, so
+/// `scripts/ios-parity.sh` can hold the iPhone's Swift port to the same answers.
+/// YAP_PARITY_IN=in.json YAP_PARITY_OUT=out.json cargo test --lib parity_dump -- --ignored
+#[test]
+#[ignore]
+fn parity_dump() {
+    let input = std::env::var("YAP_PARITY_IN").expect("set YAP_PARITY_IN");
+    let output = std::env::var("YAP_PARITY_OUT").expect("set YAP_PARITY_OUT");
+    let said: Vec<String> = serde_json::from_str(&std::fs::read_to_string(input).unwrap()).unwrap();
+    let profile = Profile::default();
+    let rows: Vec<serde_json::Value> = said
+        .iter()
+        .map(|s| {
+            let clean = polish::local_rules(&profile, s).text;
+            serde_json::json!({
+                "input": s,
+                "clean": clean,
+                "list": polish::as_list(&clean),
+                "groups": polish::as_groups(&clean),
+                "listDirect": polish::as_list(s),
+                "groupsDirect": polish::as_groups(s),
+                "words": store::word_count(&clean),
+                "keptPct": format!("{:.2}", store::kept_pct(s, &clean)),
+            })
+        })
+        .collect();
+    std::fs::write(output, serde_json::to_string_pretty(&rows).unwrap()).unwrap();
+
+    // What Claude is told about the speaker, for a plain profile and two busy ones.
+    if let Ok(prompts) = std::env::var("YAP_PARITY_PROMPTS") {
+        let profiles: Vec<Profile> = serde_json::from_str(&std::fs::read_to_string(&prompts).unwrap()).unwrap();
+        let out: Vec<String> = profiles.iter().map(polish::speaker_section).collect();
+        std::fs::write(format!("{prompts}.rust"), serde_json::to_string_pretty(&out).unwrap()).unwrap();
+    }
+}
+
+/// The crypto half of `scripts/ios-parity.sh`: key derivation, passphrase rules, and sealing,
+/// so the iPhone's Swift can prove it opens what the Mac seals and the other way round.
+/// YAP_CRYPTO_MODE=derive|seal|unseal YAP_PARITY_IN=… YAP_PARITY_OUT=… cargo test --lib parity_crypto -- --ignored
+#[test]
+#[ignore]
+fn parity_crypto() {
+    use crate::cloud;
+    let input = std::fs::read_to_string(std::env::var("YAP_PARITY_IN").unwrap()).unwrap();
+    let output = std::env::var("YAP_PARITY_OUT").unwrap();
+    let out = match std::env::var("YAP_CRYPTO_MODE").unwrap().as_str() {
+        "derive" => {
+            let v: serde_json::Value = serde_json::from_str(&input).unwrap();
+            let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+            let keys: Vec<serde_json::Value> = v["keys"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|k| {
+                    let (pass, salt) = (k["pass"].as_str().unwrap(), k["salt"].as_str().unwrap());
+                    let mut short = [0u8; 16];
+                    let mut long = [0u8; 32];
+                    argon2::Argon2::default().hash_password_into(pass.as_bytes(), salt.as_bytes(), &mut short).unwrap();
+                    argon2::Argon2::default().hash_password_into(pass.as_bytes(), salt.as_bytes(), &mut long).unwrap();
+                    serde_json::json!({ "pass": pass, "salt": salt, "k16": hex(&short), "k32": hex(&long), "vault": cloud::vault_id(pass).unwrap() })
+                })
+                .collect();
+            let checks: Vec<serde_json::Value> = v["passphrases"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|p| {
+                    let p = p.as_str().unwrap();
+                    serde_json::json!({ "pass": p, "verdict": cloud::check_passphrase(p).err().unwrap_or_default() })
+                })
+                .collect();
+            serde_json::json!({ "keys": keys, "checks": checks })
+        }
+        "seal" => {
+            let v: serde_json::Value = serde_json::from_str(&input).unwrap();
+            let lib: library::Library = serde_json::from_value(v["library"].clone()).unwrap();
+            let (salt, nonce, blob) = cloud::seal(v["passphrase"].as_str().unwrap(), &lib).unwrap();
+            serde_json::json!({ "salt": salt, "nonce": nonce, "blob": blob })
+        }
+        _ => {
+            let v: serde_json::Value = serde_json::from_str(&input).unwrap();
+            let s = &v["sealed"];
+            let lib = cloud::unseal(v["passphrase"].as_str().unwrap(), s["salt"].as_str().unwrap(),
+                                    s["nonce"].as_str().unwrap(), s["blob"].as_str().unwrap()).unwrap();
+            serde_json::to_value(&lib).unwrap()
+        }
+    };
+    std::fs::write(output, serde_json::to_string_pretty(&out).unwrap()).unwrap();
 }

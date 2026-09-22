@@ -156,6 +156,8 @@ fn record(app: &AppHandle, d: &Dictation) -> Result<(), String> {
     }
     st.save_history()?;
     let _ = app.emit("yap://dictation", d);
+    // Out to your other devices straight away, as Settings promises.
+    sync_cloud_soon(app);
     Ok(())
 }
 
@@ -290,7 +292,7 @@ fn cloud_forget(state: State<'_, AppState>) -> Result<CloudStatus, String> {
 
 #[tauri::command]
 async fn cloud_sync_now(app: AppHandle) -> Result<String, String> {
-    let result = sync_cloud(&app).await?;
+    let result = sync_cloud(&app, true).await?;
     Ok(match (result.changed, result.uploaded) {
         (true, _) => "Synced. This computer picked up changes from your other ones.".into(),
         (false, true) => "Synced. Your library is now in the cloud.".into(),
@@ -298,8 +300,13 @@ async fn cloud_sync_now(app: AppHandle) -> Result<String, String> {
     })
 }
 
-/// Syncs the library with Firestore, whichever way this computer is registered.
-async fn sync_cloud(app: &AppHandle) -> Result<cloud::Synced, String> {
+/// One cloud sync at a time: two at once would each merge a stale copy.
+static CLOUD_SYNCING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Syncs the library with Firestore, whichever way this computer is registered. Automatic syncs
+/// respect the toggle; `explicit` ("Sync now") always runs.
+async fn sync_cloud(app: &AppHandle, explicit: bool) -> Result<cloud::Synced, String> {
+    use std::sync::atomic::Ordering;
     let quiet = cloud::Synced { changed: false, uploaded: false };
     let st = app.state::<AppState>();
     let (on, project, api_key) = {
@@ -307,9 +314,19 @@ async fn sync_cloud(app: &AppHandle) -> Result<cloud::Synced, String> {
         (s.cloud_sync, s.firebase_project_id.clone(), s.firebase_api_key.clone())
     };
     let account = st.account.lock().unwrap().clone();
-    if !on || !account.registered() || account.passphrase.is_empty() {
+    if !(on || explicit) || !account.registered() || account.passphrase.is_empty() {
         return Ok(quiet);
     }
+    if CLOUD_SYNCING.swap(true, Ordering::SeqCst) {
+        return Ok(quiet);
+    }
+    struct Done;
+    impl Drop for Done {
+        fn drop(&mut self) {
+            CLOUD_SYNCING.store(false, Ordering::SeqCst);
+        }
+    }
+    let _done = Done;
 
     // Work on copies so no lock is held across the network calls.
     let (mut profile, mut history, mut deleted) = (
@@ -319,10 +336,16 @@ async fn sync_cloud(app: &AppHandle) -> Result<cloud::Synced, String> {
     );
     let result = cloud::sync(&project, &api_key, &account, &mut profile, &mut history, &mut deleted).await?;
     if result.changed {
-        *st.profile.lock().unwrap() = profile;
-        *st.history.lock().unwrap() = history;
-        *st.deleted.lock().unwrap() = deleted;
-        store::save(&st.file("profile.json"), &*st.profile.lock().unwrap())?;
+        // Fold the result into what's here *now* rather than replacing it: a dictation recorded
+        // while the sync was on the network would otherwise vanish.
+        let synced = library::Library::new(&profile, &history, &deleted);
+        {
+            let mut p = st.profile.lock().unwrap();
+            let mut h = st.history.lock().unwrap();
+            let mut d = st.deleted.lock().unwrap();
+            library::merge(Some(&synced), &mut p, &mut h, &mut d);
+            store::save(&st.file("profile.json"), &*p)?;
+        }
         st.save_history()?;
         st.save_deleted()?;
         let _ = app.emit("yap://library", ());
@@ -330,11 +353,29 @@ async fn sync_cloud(app: &AppHandle) -> Result<cloud::Synced, String> {
     Ok(result)
 }
 
+/// Syncs in the background and only logs trouble: the "Sync now" button is where errors are shown.
+fn sync_cloud_soon(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = sync_cloud(&app, false).await {
+            eprintln!("yap: cloud sync: {e}");
+        }
+    });
+}
+
 fn library_loop(app: AppHandle) {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(std::time::Duration::from_secs(8));
-        if let Err(e) = sync_library(&app) {
-            eprintln!("yap: library sync: {e}");
+    // Pick up what other devices did since this one was last open.
+    sync_cloud_soon(&app);
+    std::thread::spawn(move || {
+        for tick in 1u64.. {
+            std::thread::sleep(std::time::Duration::from_secs(8));
+            if let Err(e) = sync_library(&app) {
+                eprintln!("yap: library sync: {e}");
+            }
+            // The folder is local and cheap to check; the cloud is a round trip, so every two minutes.
+            if tick % 15 == 0 {
+                sync_cloud_soon(&app);
+            }
         }
     });
 }
@@ -888,7 +929,8 @@ pub fn run() {
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
-            let settings: Settings = store::load(&data_dir.join("settings.json"));
+            let mut settings: Settings = store::load(&data_dir.join("settings.json"));
+            settings.fill_blank_firebase();
             let profile: Profile = store::load(&data_dir.join("profile.json"));
             let history: Vec<Dictation> = store::load(&data_dir.join("history.json"));
             let account: cloud::Account = store::load(&data_dir.join("account.json"));

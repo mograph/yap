@@ -13,18 +13,24 @@
 		100B19072AE96D3906E34672 /* DictationRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A69A8DE895507B9FDBFE937E /* DictationRow.swift */; };
 		1106FD51DD9678296BED34BC /* Polish.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F4753FFF76D110BAA24380 /* Polish.swift */; };
 		13D28D83A1A7972E25492397 /* KeyboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDDE951FE02F3B5A600ACC63 /* KeyboardView.swift */; };
+		157B4EA72F1865B3FB4895F6 /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8BF8F6025B62CECC010B2D /* InsightsView.swift */; };
 		16E5BE199B92810FF60F9A89 /* Wav.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DDC535F4DBA05AF9E93CC7B /* Wav.swift */; };
 		220C08B27585EC317AD813F4 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 439197DFF3572396D39197A4 /* KeyboardViewController.swift */; };
 		2A7CF6D3706292E1E9F469CA /* Bridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FBF54397BD8ED038E4D1D1C /* Bridge.swift */; };
+		2AD27960774BDA6D34CD425A /* CloudCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0E9DB264740AE033C81DD4 /* CloudCrypto.swift */; };
 		2FED36A4835C1471E9FA715B /* KeyboardSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33DF5B9FB7A5E3B1E1227A82 /* KeyboardSetupView.swift */; };
 		379603F8291B2C5CDD82742D /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = E4838B14B703BF02085570AE /* WhisperKit */; };
+		58C23D839ACCF8EE32C0D476 /* Lists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D8B78C9F6250D92603FA766 /* Lists.swift */; };
 		666D957782C31ED90A376DA3 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 732A80CA83FC54045FE68EEF /* Colors.swift */; };
 		682F68A4F76B827CAF5EED4D /* Audio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AE51BECCE54193110255E6A /* Audio.swift */; };
 		78B9BA9B9F47294D5365EB58 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 732A80CA83FC54045FE68EEF /* Colors.swift */; };
+		864D458F246EAC8E9288DDC8 /* LibrarySync.swift in Sources */ = {isa = PBXBuildFile; fileRef = E27B037B7ACE588BEB7B345D /* LibrarySync.swift */; };
+		8BD5ED64FBD37456D18B9AE1 /* Argon2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A2C56DEA7DBE5304E28CABE /* Argon2.swift */; };
 		8DF970D5F499491F97B59893 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3133207BE2B8652C101C907 /* Store.swift */; };
 		8F62C08299D6A5608C482EB1 /* Engine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B2E160EDA6CE19AF24F0C97 /* Engine.swift */; };
 		94768A4746E02A819DAB1796 /* VoiceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6168E656B8314C256D20117 /* VoiceView.swift */; };
 		985A13E3EA50BFFD2D1A3AC7 /* Transcriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60A640DF419420F07CD2F3B /* Transcriber.swift */; };
+		B2A6B1C87C1F85CBD1F6AAA4 /* Cloud.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD07BC2656675579FB497575 /* Cloud.swift */; };
 		B54DE38E9C6A72582AA0A7B8 /* TalkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E6C03D8795BDE0325095B68 /* TalkView.swift */; };
 		C7405ABE52A9B44322B36425 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3D42A9E0D5403EB8D23FA370 /* Assets.xcassets */; };
 		D7C8FCF0C8901BBD058FD803 /* YapKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EA2AB72B4B41F0E4F9924B50 /* YapKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -63,14 +69,17 @@
 		2E6C03D8795BDE0325095B68 /* TalkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TalkView.swift; sourceTree = "<group>"; };
 		33DF5B9FB7A5E3B1E1227A82 /* KeyboardSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardSetupView.swift; sourceTree = "<group>"; };
 		3B2E160EDA6CE19AF24F0C97 /* Engine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Engine.swift; sourceTree = "<group>"; };
+		3C0E9DB264740AE033C81DD4 /* CloudCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudCrypto.swift; sourceTree = "<group>"; };
 		3D42A9E0D5403EB8D23FA370 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3DDC535F4DBA05AF9E93CC7B /* Wav.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Wav.swift; sourceTree = "<group>"; };
 		43785856E98D16452AB60811 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		439197DFF3572396D39197A4 /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
 		69F4753FFF76D110BAA24380 /* Polish.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Polish.swift; sourceTree = "<group>"; };
+		6D8B78C9F6250D92603FA766 /* Lists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lists.swift; sourceTree = "<group>"; };
 		732A80CA83FC54045FE68EEF /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
 		7FBF54397BD8ED038E4D1D1C /* Bridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bridge.swift; sourceTree = "<group>"; };
 		88E195C5BAC23C15C9BC9FC7 /* Yap.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Yap.entitlements; sourceTree = "<group>"; };
+		8A2C56DEA7DBE5304E28CABE /* Argon2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Argon2.swift; sourceTree = "<group>"; };
 		A69A8DE895507B9FDBFE937E /* DictationRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationRow.swift; sourceTree = "<group>"; };
 		B1AB804C7A8FACA09101C850 /* Yap.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Yap.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B3133207BE2B8652C101C907 /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
@@ -80,7 +89,10 @@
 		C05B85FABA98895DC4BA34E2 /* YapApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YapApp.swift; sourceTree = "<group>"; };
 		C1CBA42E260BE4C3615F1F81 /* Keyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Keyboard.entitlements; sourceTree = "<group>"; };
 		CDDE951FE02F3B5A600ACC63 /* KeyboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardView.swift; sourceTree = "<group>"; };
+		E27B037B7ACE588BEB7B345D /* LibrarySync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySync.swift; sourceTree = "<group>"; };
 		EA2AB72B4B41F0E4F9924B50 /* YapKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = YapKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		EE8BF8F6025B62CECC010B2D /* InsightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; };
+		FD07BC2656675579FB497575 /* Cloud.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cloud.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,10 +110,15 @@
 		038A2B80C89B267846B9C786 /* Yap */ = {
 			isa = PBXGroup;
 			children = (
+				8A2C56DEA7DBE5304E28CABE /* Argon2.swift */,
 				3D42A9E0D5403EB8D23FA370 /* Assets.xcassets */,
 				0AE51BECCE54193110255E6A /* Audio.swift */,
+				FD07BC2656675579FB497575 /* Cloud.swift */,
+				3C0E9DB264740AE033C81DD4 /* CloudCrypto.swift */,
 				3B2E160EDA6CE19AF24F0C97 /* Engine.swift */,
 				B4049E9D95C96D914F7C8B4C /* Info.plist */,
+				E27B037B7ACE588BEB7B345D /* LibrarySync.swift */,
+				6D8B78C9F6250D92603FA766 /* Lists.swift */,
 				69F4753FFF76D110BAA24380 /* Polish.swift */,
 				B60A640DF419420F07CD2F3B /* Transcriber.swift */,
 				3DDC535F4DBA05AF9E93CC7B /* Wav.swift */,
@@ -127,6 +144,7 @@
 			children = (
 				11264640D5CE5A6BC1428B4D /* BrandMark.swift */,
 				A69A8DE895507B9FDBFE937E /* DictationRow.swift */,
+				EE8BF8F6025B62CECC010B2D /* InsightsView.swift */,
 				33DF5B9FB7A5E3B1E1227A82 /* KeyboardSetupView.swift */,
 				0F03C49D454D4CBD385A709D /* SettingsView.swift */,
 				2E6C03D8795BDE0325095B68 /* TalkView.swift */,
@@ -277,13 +295,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8BD5ED64FBD37456D18B9AE1 /* Argon2.swift in Sources */,
 				682F68A4F76B827CAF5EED4D /* Audio.swift in Sources */,
 				F7E8D5BC23AFEB3ECB039C7B /* BrandMark.swift in Sources */,
 				0A32428622545AC920C044D2 /* Bridge.swift in Sources */,
+				B2A6B1C87C1F85CBD1F6AAA4 /* Cloud.swift in Sources */,
+				2AD27960774BDA6D34CD425A /* CloudCrypto.swift in Sources */,
 				78B9BA9B9F47294D5365EB58 /* Colors.swift in Sources */,
 				100B19072AE96D3906E34672 /* DictationRow.swift in Sources */,
 				8F62C08299D6A5608C482EB1 /* Engine.swift in Sources */,
+				157B4EA72F1865B3FB4895F6 /* InsightsView.swift in Sources */,
 				2FED36A4835C1471E9FA715B /* KeyboardSetupView.swift in Sources */,
+				864D458F246EAC8E9288DDC8 /* LibrarySync.swift in Sources */,
+				58C23D839ACCF8EE32C0D476 /* Lists.swift in Sources */,
 				1106FD51DD9678296BED34BC /* Polish.swift in Sources */,
 				053A32E6CC23492D4ECA5043 /* SettingsView.swift in Sources */,
 				097D1A0F49EC23539E1F8D62 /* Store.swift in Sources */,

@@ -3,7 +3,7 @@ import Foundation
 /// How the keyboard and the app talk. Keyboards can't use the microphone, so the app records
 /// and the keyboard asks it to start and stop, then types whatever comes back.
 ///
-/// Keyboard -> app: Darwin notifications ("start", "stop", "cancel").
+/// Keyboard -> app: Darwin notifications ("start", "stop", "cancel", "pickList").
 /// App -> keyboard: shared UserDefaults, which the keyboard polls while it's on screen.
 enum Bridge {
     static let defaults = UserDefaults(suiteName: Store.group) ?? .standard
@@ -16,6 +16,10 @@ enum Bridge {
         static let message = "message"
         static let result = "result"
         static let resultId = "resultId"
+        /// The tidier version of `result`, when there is one.
+        static let resultList = "resultList"
+        /// Ask before typing: "as said" or the list, like the Mac's "Make it a list?" pill.
+        static let offer = "offer"
         /// A keyboard dictation finished and hasn't been typed yet.
         static let pending = "pending"
     }

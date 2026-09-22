@@ -64,6 +64,32 @@ A Desktop client is the right kind: a Web client rejects the loopback redirect Y
 Turn on whichever you want. If a provider is off, Yap says so in plain words rather than
 showing a Firebase error code.
 
+## On the iPhone (Moonshot)
+
+The iPhone app uses the same vaults, the same encryption and the same merge as the Mac, so a
+library flows between them either way. Settings → Account, same two choices.
+
+- **Passphrase only** needs nothing extra: the project and API key come pre-filled.
+- **Google sign-in** needs an OAuth client of the **iOS** type, not the Desktop one the Mac
+  uses: https://console.cloud.google.com/apis/credentials?project=yap-tinkerstudio →
+  **Create credentials → OAuth client ID → iOS**, bundle ID `io.tinkerstudio.moonshot.ios`.
+  Paste its client ID under Account → Firebase details. No secret is needed.
+
+The account and passphrase live in the iOS Keychain, on that device only (never iCloud Keychain),
+readable after first unlock so a sync can finish in the background.
+
+Argon2id isn't in CryptoKit, so `ios/Yap/Argon2.swift` implements it. It has to produce exactly
+the Mac's bytes or the phone can never open the Mac's vault, so `scripts/ios-parity.sh` derives
+keys on both sides and seals a library on each side for the other to open. Derived keys are
+cached per launch: the first sync after opening the app takes a moment, the rest are instant.
+
+## When it syncs
+
+Both apps sync after every dictation, every couple of minutes while open, and when opened (the
+phone also when it comes back to the front). **Sync now** always runs, even with the toggle off.
+One sync at a time, and a sync folds its result into whatever is there when it finishes, so a
+dictation made mid-sync is kept.
+
 ## Rules
 
 Deployed. Re-deploy after editing `firestore.rules`:

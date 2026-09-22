@@ -15,15 +15,7 @@ struct VoiceView: View {
         ("formatting", "Formatting", "bullet lists when you run through things"),
     ]
 
-    private var tier: (name: String, example: String) {
-        switch engine.profile.tone {
-        case ...15: return ("Raw", "so yeah i'm gonna be like ten minutes late, traffic is kinda insane rn lol")
-        case ...40: return ("Casual", "So yeah, I'm gonna be like ten minutes late, traffic is kinda insane rn lol")
-        case ...65: return ("Relaxed", "So yeah, I'm gonna be about ten minutes late. Traffic is kinda insane right now, lol.")
-        case ...85: return ("Tidy", "I'm going to be about ten minutes late. Traffic is pretty bad right now.")
-        default: return ("Polished", "I'll be about ten minutes late; traffic is heavy at the moment.")
-        }
-    }
+    private var tier: Tone.Tier { Tone.tier(engine.profile.tone, casual: engine.profile.casual) }
 
     var body: some View {
         NavigationStack {
@@ -46,6 +38,17 @@ struct VoiceView: View {
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(RoundedRectangle(cornerRadius: 10).fill(Theme.goodSoft))
+                    Toggle(isOn: $engine.profile.casual) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Casual mode").font(.body.weight(.semibold))
+                            Text("Write it like a Slack message. Nothing gets turned into bullets or grouped up, and it never reads more written than a chat.")
+                                .font(.caption).foregroundStyle(Theme.ink2)
+                        }
+                    }
+                    if engine.profile.casual && engine.profile.tone > Tone.casualCap {
+                        Label("Casual mode caps this at relaxed — slide down or turn it off to go more polished.", systemImage: "exclamationmark.triangle")
+                            .font(.caption).foregroundStyle(Theme.warn)
+                    }
                 }
 
                 Section {
@@ -129,5 +132,29 @@ struct VoiceView: View {
         guard !word.isEmpty, !engine.profile.myWords.contains(where: { $0.caseInsensitiveCompare(word) == .orderedSame }) else { return }
         engine.profile.myWords.append(word)
         newWord = ""
+    }
+}
+
+/// The tone slider's tiers, shared by Your voice and Settings. Casual mode never reads more written
+/// than "Relaxed", same as the Mac.
+enum Tone {
+    struct Tier {
+        let name: String
+        let example: String
+    }
+
+    static let casualCap = 65
+
+    private static let tiers: [(max: Int, tier: Tier)] = [
+        (15, Tier(name: "Raw", example: "so yeah i'm gonna be like ten minutes late, traffic is kinda insane rn lol")),
+        (40, Tier(name: "Casual", example: "So yeah, I'm gonna be like ten minutes late, traffic is kinda insane rn lol")),
+        (65, Tier(name: "Relaxed", example: "So yeah, I'm gonna be about ten minutes late. Traffic is kinda insane right now, lol.")),
+        (85, Tier(name: "Tidy", example: "I'm going to be about ten minutes late. Traffic is pretty bad right now.")),
+        (100, Tier(name: "Polished", example: "I'll be about ten minutes late; traffic is heavy at the moment.")),
+    ]
+
+    static func tier(_ tone: Int, casual: Bool) -> Tier {
+        let capped = casual ? min(tone, casualCap) : tone
+        return (tiers.first { capped <= $0.max } ?? tiers[tiers.count - 1]).tier
     }
 }

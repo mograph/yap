@@ -97,10 +97,26 @@ impl Default for Settings {
             lists: "ask".into(),
             library_folder: String::new(),
             cloud_sync: false,
-            firebase_project_id: String::new(),
-            firebase_api_key: String::new(),
+            // The Moonshot/Yap project, pre-filled so setting up is a passphrase and nothing else.
+            // Neither is a secret: the security rules are what guard the data.
+            firebase_project_id: "yap-tinkerstudio".into(),
+            firebase_api_key: "AIzaSyALock_PLlhBo6sZgQPCPBsoKMQI7b4tko".into(),
             google_client_id: String::new(),
             google_client_secret: String::new(),
+        }
+    }
+}
+
+impl Settings {
+    /// A blank Firebase project or key was never anyone's choice: builds before they were
+    /// pre-filled saved them empty. Filled in on load, so setting up is just a passphrase.
+    pub fn fill_blank_firebase(&mut self) {
+        let fresh = Settings::default();
+        if self.firebase_project_id.trim().is_empty() {
+            self.firebase_project_id = fresh.firebase_project_id;
+        }
+        if self.firebase_api_key.trim().is_empty() {
+            self.firebase_api_key = fresh.firebase_api_key;
         }
     }
 }

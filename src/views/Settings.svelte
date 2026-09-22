@@ -519,7 +519,7 @@
   <div class="perm">
     <span class="m-text">
       <b>Keep my library in the cloud</b>
-      <span class="muted small">Syncs your profile and history to your other computers after every dictation.</span>
+      <span class="muted small">Syncs your profile and history to your other devices, iPhone included, after every dictation and every couple of minutes.</span>
     </span>
     <Toggle bind:checked={s.cloudSync} label="Sync" />
   </div>

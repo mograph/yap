@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct YapApp: App {
     @StateObject private var engine = Engine()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -13,6 +14,10 @@ struct YapApp: App {
                 .onOpenURL { url in
                     // moonshot://dictate comes from the keyboard's mic button.
                     if url.host == "dictate" { engine.openedFromKeyboard() }
+                }
+                // Coming back to Moonshot picks up whatever your other devices did meanwhile.
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { Task { await engine.syncCloud(explicit: false) } }
                 }
         }
     }
@@ -30,6 +35,9 @@ struct RootView: View {
             VoiceView()
                 .tabItem { Label("Your voice", systemImage: "slider.horizontal.3") }
                 .tag("voice")
+            InsightsView()
+                .tabItem { Label("Insights", systemImage: "chart.bar") }
+                .tag("insights")
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag("settings")
