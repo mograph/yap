@@ -1,5 +1,6 @@
 mod cloud;
 mod library;
+mod notes;
 mod polish;
 mod store;
 mod stt;
@@ -68,6 +69,11 @@ pub struct AppState {
     deleted: Mutex<Vec<String>>,
     /// Google sign-in and the passphrase your library is encrypted with. Owner-only on disk.
     account: Mutex<cloud::Account>,
+    /// Meeting notes, newest first.
+    notes: Mutex<Vec<notes::Note>>,
+    /// The note being recorded right now, if any.
+    #[cfg(desktop)]
+    recording: Mutex<Option<(String, notes::Session)>>,
     phase: Mutex<Phase>,
     #[cfg(desktop)]
     recorder: Arc<audio::Recorder>,
@@ -96,6 +102,11 @@ impl AppState {
             let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
         }
         Ok(())
+    }
+
+    fn save_notes(&self) -> Result<(), String> {
+        let notes = self.notes.lock().unwrap().clone();
+        store::save(&self.file("notes.json"), &notes)
     }
 
     fn save_history(&self) -> Result<(), String> {
@@ -156,6 +167,8 @@ fn record(app: &AppHandle, d: &Dictation) -> Result<(), String> {
     }
     st.save_history()?;
     let _ = app.emit("yap://dictation", d);
+    // Out to your other devices straight away, as Settings promises.
+    sync_cloud_soon(app);
     Ok(())
 }
 
@@ -290,7 +303,7 @@ fn cloud_forget(state: State<'_, AppState>) -> Result<CloudStatus, String> {
 
 #[tauri::command]
 async fn cloud_sync_now(app: AppHandle) -> Result<String, String> {
-    let result = sync_cloud(&app).await?;
+    let result = sync_cloud(&app, true).await?;
     Ok(match (result.changed, result.uploaded) {
         (true, _) => "Synced. This computer picked up changes from your other ones.".into(),
         (false, true) => "Synced. Your library is now in the cloud.".into(),
@@ -298,8 +311,13 @@ async fn cloud_sync_now(app: AppHandle) -> Result<String, String> {
     })
 }
 
-/// Syncs the library with Firestore, whichever way this computer is registered.
-async fn sync_cloud(app: &AppHandle) -> Result<cloud::Synced, String> {
+/// One cloud sync at a time: two at once would each merge a stale copy.
+static CLOUD_SYNCING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Syncs the library with Firestore, whichever way this computer is registered. Automatic syncs
+/// respect the toggle; `explicit` ("Sync now") always runs.
+async fn sync_cloud(app: &AppHandle, explicit: bool) -> Result<cloud::Synced, String> {
+    use std::sync::atomic::Ordering;
     let quiet = cloud::Synced { changed: false, uploaded: false };
     let st = app.state::<AppState>();
     let (on, project, api_key) = {
@@ -307,9 +325,19 @@ async fn sync_cloud(app: &AppHandle) -> Result<cloud::Synced, String> {
         (s.cloud_sync, s.firebase_project_id.clone(), s.firebase_api_key.clone())
     };
     let account = st.account.lock().unwrap().clone();
-    if !on || !account.registered() || account.passphrase.is_empty() {
+    if !(on || explicit) || !account.registered() || account.passphrase.is_empty() {
         return Ok(quiet);
     }
+    if CLOUD_SYNCING.swap(true, Ordering::SeqCst) {
+        return Ok(quiet);
+    }
+    struct Done;
+    impl Drop for Done {
+        fn drop(&mut self) {
+            CLOUD_SYNCING.store(false, Ordering::SeqCst);
+        }
+    }
+    let _done = Done;
 
     // Work on copies so no lock is held across the network calls.
     let (mut profile, mut history, mut deleted) = (
@@ -319,10 +347,16 @@ async fn sync_cloud(app: &AppHandle) -> Result<cloud::Synced, String> {
     );
     let result = cloud::sync(&project, &api_key, &account, &mut profile, &mut history, &mut deleted).await?;
     if result.changed {
-        *st.profile.lock().unwrap() = profile;
-        *st.history.lock().unwrap() = history;
-        *st.deleted.lock().unwrap() = deleted;
-        store::save(&st.file("profile.json"), &*st.profile.lock().unwrap())?;
+        // Fold the result into what's here *now* rather than replacing it: a dictation recorded
+        // while the sync was on the network would otherwise vanish.
+        let synced = library::Library::new(&profile, &history, &deleted);
+        {
+            let mut p = st.profile.lock().unwrap();
+            let mut h = st.history.lock().unwrap();
+            let mut d = st.deleted.lock().unwrap();
+            library::merge(Some(&synced), &mut p, &mut h, &mut d);
+            store::save(&st.file("profile.json"), &*p)?;
+        }
         st.save_history()?;
         st.save_deleted()?;
         let _ = app.emit("yap://library", ());
@@ -330,11 +364,196 @@ async fn sync_cloud(app: &AppHandle) -> Result<cloud::Synced, String> {
     Ok(result)
 }
 
+/// Syncs in the background and only logs trouble: the "Sync now" button is where errors are shown.
+fn sync_cloud_soon(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = sync_cloud(&app, false).await {
+            eprintln!("yap: cloud sync: {e}");
+        }
+    });
+}
+
+// ---------- notes ----------
+
+#[tauri::command]
+fn notes_list(state: State<'_, AppState>) -> Vec<notes::Note> {
+    state.notes.lock().unwrap().clone()
+}
+
+/// Which note is recording, so a reopened window picks up where it was.
+#[tauri::command]
+fn note_recording(state: State<'_, AppState>) -> Option<String> {
+    #[cfg(desktop)]
+    return state.recording.lock().unwrap().as_ref().map(|(id, _)| id.clone());
+    #[cfg(not(desktop))]
+    return None;
+}
+
+/// Starts a note, or picks one back up with `resume`. `mode` is "call" to hear the Mac's own
+/// sound as the other side, or "person" for the mic alone. Always your local model: meetings
+/// don't leave the Mac.
+#[cfg(desktop)]
+#[tauri::command]
+fn note_start(app: AppHandle, mode: String, resume: Option<String>) -> Result<notes::Note, String> {
+    let st = app.state::<AppState>();
+    if st.recording.lock().unwrap().is_some() {
+        return Err("A note is already recording.".into());
+    }
+    let model = st.settings.lock().unwrap().local_model.clone();
+    let installed = stt::spec(&model).is_some_and(|spec| stt::location(&st.data_dir, spec).exists());
+    if !installed {
+        return Err("Notes transcribe on this Mac. Download a model in Settings → Ears first.".into());
+    }
+
+    let call = mode == "call";
+    let mut note = match &resume {
+        Some(id) => st.notes.lock().unwrap().iter().find(|n| n.id == *id).cloned().ok_or("That note is gone.")?,
+        None => {
+            let mut n = notes::Note {
+                id: uuid::Uuid::new_v4().to_string(),
+                created_at: chrono::Utc::now().to_rfc3339(),
+                ..Default::default()
+            };
+            n.title = notes::default_title(&n);
+            n
+        }
+    };
+    // Once a note has heard the other side it stays a call, even if it's resumed without.
+    if call || note.mode.is_empty() {
+        note.mode = if call { "call" } else { "person" }.into();
+    }
+    // Picked back up: what's said now comes after what was said before.
+    let offset = note.duration_secs;
+    let id = note.id.clone();
+
+    let (for_worker, for_levels) = (app.clone(), app.clone());
+    let transcribe = move |chunk: notes::Chunk| {
+        let st = for_worker.state::<AppState>();
+        let (settings, profile) = (st.settings.lock().unwrap().clone(), st.profile.lock().unwrap().clone());
+        let text = st.stt.transcribe(&st.data_dir, &settings.local_model, &chunk.samples, &settings.language, &stt::vocabulary(&profile));
+        let text = match text {
+            Ok(t) if !notes::is_noise(&t, chunk.loudness) => t,
+            Ok(_) => return,
+            Err(e) => {
+                eprintln!("yap: notes transcription: {e}");
+                return;
+            }
+        };
+        let segment = notes::Segment { at: chunk.at + offset, who: chunk.who.into(), text };
+        {
+            let mut all = st.notes.lock().unwrap();
+            if let Some(n) = all.iter_mut().find(|n| n.id == id) {
+                n.segments.push(segment.clone());
+            }
+        }
+        // Saved as it goes, so a crash mid-meeting keeps what was said.
+        let _ = st.save_notes();
+        let _ = for_worker.emit("yap://note-segment", serde_json::json!({ "id": id, "segment": segment }));
+    };
+    let levels = move |you: f32, them: f32| {
+        let _ = for_levels.emit("yap://note-level", serde_json::json!({ "you": you, "them": them }));
+    };
+
+    let (session, warning) = notes::start(call, transcribe, levels)?;
+    note.warning = warning.unwrap_or_default();
+    {
+        let mut all = st.notes.lock().unwrap();
+        all.retain(|n| n.id != note.id);
+        all.insert(0, note.clone());
+    }
+    st.save_notes()?;
+    *st.recording.lock().unwrap() = Some((note.id.clone(), session));
+    Ok(note)
+}
+
+#[cfg(not(desktop))]
+#[tauri::command]
+fn note_start(_mode: String, _resume: Option<String>) -> Result<notes::Note, String> {
+    Err("Notes record on the desktop app.".into())
+}
+
+/// Stops the note, transcribes what's left, and lays out the notes.
+#[tauri::command]
+async fn note_stop(app: AppHandle) -> Result<notes::Note, String> {
+    #[cfg(desktop)]
+    {
+        let taken = app.state::<AppState>().recording.lock().unwrap().take();
+        let (id, session) = taken.ok_or("Nothing is recording.")?;
+        // The last piece still has to go through Whisper, which can take a moment.
+        let secs = tauri::async_runtime::spawn_blocking(move || session.finish()).await.map_err(|e| e.to_string())?;
+        let st = app.state::<AppState>();
+        let profile = st.profile.lock().unwrap().clone();
+        let note = {
+            let mut all = st.notes.lock().unwrap();
+            let note = all.iter_mut().find(|n| n.id == id).ok_or("That note is gone.")?;
+            note.duration_secs += secs;
+            notes::lay_out(note, &profile);
+            note.clone()
+        };
+        st.save_notes()?;
+        Ok(note)
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        Err("Notes record on the desktop app.".into())
+    }
+}
+
+/// Saves your title and notes, and re-lays-out the notes unless it's still recording.
+#[tauri::command]
+fn note_save(state: State<'_, AppState>, id: String, title: String, my_notes: String) -> Result<notes::Note, String> {
+    #[cfg(desktop)]
+    let live = state.recording.lock().unwrap().as_ref().is_some_and(|(r, _)| *r == id);
+    #[cfg(not(desktop))]
+    let live = false;
+    let profile = state.profile.lock().unwrap().clone();
+    let note = {
+        let mut all = state.notes.lock().unwrap();
+        let note = all.iter_mut().find(|n| n.id == id).ok_or("That note is gone.")?;
+        note.my_notes = my_notes;
+        note.title = if title.trim().is_empty() { notes::default_title(note) } else { title.trim().to_string() };
+        if !live {
+            notes::lay_out(note, &profile);
+        }
+        note.clone()
+    };
+    state.save_notes()?;
+    Ok(note)
+}
+
+/// The transcript on its own, as text, for copying.
+#[tauri::command]
+fn note_transcript(state: State<'_, AppState>, id: String) -> Result<String, String> {
+    let all = state.notes.lock().unwrap();
+    let note = all.iter().find(|n| n.id == id).ok_or("That note is gone.")?;
+    Ok(notes::transcript(note))
+}
+
+#[tauri::command]
+fn note_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    #[cfg(desktop)]
+    if state.recording.lock().unwrap().as_ref().is_some_and(|(r, _)| *r == id) {
+        return Err("Stop the recording first.".into());
+    }
+    state.notes.lock().unwrap().retain(|n| n.id != id);
+    state.save_notes()
+}
+
 fn library_loop(app: AppHandle) {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(std::time::Duration::from_secs(8));
-        if let Err(e) = sync_library(&app) {
-            eprintln!("yap: library sync: {e}");
+    // Pick up what other devices did since this one was last open.
+    sync_cloud_soon(&app);
+    std::thread::spawn(move || {
+        for tick in 1u64.. {
+            std::thread::sleep(std::time::Duration::from_secs(8));
+            if let Err(e) = sync_library(&app) {
+                eprintln!("yap: library sync: {e}");
+            }
+            // The folder is local and cheap to check; the cloud is a round trip, so every two minutes.
+            if tick % 15 == 0 {
+                sync_cloud_soon(&app);
+            }
         }
     });
 }
@@ -888,10 +1107,12 @@ pub fn run() {
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
-            let settings: Settings = store::load(&data_dir.join("settings.json"));
+            let mut settings: Settings = store::load(&data_dir.join("settings.json"));
+            settings.fill_blank_firebase();
             let profile: Profile = store::load(&data_dir.join("profile.json"));
             let history: Vec<Dictation> = store::load(&data_dir.join("history.json"));
             let account: cloud::Account = store::load(&data_dir.join("account.json"));
+            let notes: Vec<notes::Note> = store::load(&data_dir.join("notes.json"));
             let deleted: Vec<String> = store::load(&data_dir.join("deleted.json"));
             #[cfg(desktop)]
             let (combo, engine, model) =
@@ -906,6 +1127,9 @@ pub fn run() {
                 history: Mutex::new(history),
                 deleted: Mutex::new(deleted),
                 account: Mutex::new(account),
+                notes: Mutex::new(notes),
+                #[cfg(desktop)]
+                recording: Mutex::new(None),
                 phase: Mutex::new(Phase::Idle),
                 #[cfg(desktop)]
                 recorder: Arc::new(audio::Recorder::spawn(app.handle().clone())),
@@ -964,6 +1188,13 @@ pub fn run() {
             cloud_forget,
             set_cloud_passphrase,
             cloud_sync_now,
+            notes_list,
+            note_start,
+            note_stop,
+            note_save,
+            note_delete,
+            note_transcript,
+            note_recording,
             download_model,
             delete_model,
             polish_text,

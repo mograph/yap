@@ -2,10 +2,10 @@ import SwiftUI
 
 struct KeyboardSetupView: View {
     private let steps = [
-        ("gearshape", "Open Settings", "Tap the button below. It opens Yap's page in the Settings app."),
-        ("keyboard", "Keyboards → turn on Yap", "Then turn on Allow Full Access. Yap needs it to hand your words from the app to the keyboard."),
-        ("globe", "Switch to Yap while typing", "In any app, tap and hold 🌐 on your keyboard and pick Yap."),
-        ("mic.fill", "Tap the mic and talk", "The first time, your phone jumps to Yap to turn the mic on. Tap ◀ in the top-left to go back, keep talking, then tap ■. Your words get typed."),
+        ("gearshape", "Open Settings", "Tap the button below. It opens Moonshot's page in the Settings app."),
+        ("keyboard", "Keyboards → turn on Moonshot", "Then turn on Allow Full Access. Moonshot needs it to hand your words from the app to the keyboard."),
+        ("globe", "Switch to Moonshot while typing", "In any app, tap and hold 🌐 on your keyboard and pick Moonshot."),
+        ("mic.fill", "Tap the mic and talk", "The first time, your phone jumps to Moonshot to turn the mic on. Tap ◀ in the top-left to go back, keep talking, then tap ■. Your words get typed."),
         ("clock", "After that, no jumping", "The mic stays ready for 5 minutes, so you can keep dictating without leaving your app."),
     ]
 
@@ -35,6 +35,6 @@ struct KeyboardSetupView: View {
                 .listRowBackground(Color.clear)
             }
         }
-        .navigationTitle("Yap keyboard")
+        .navigationTitle("Moonshot keyboard")
     }
 }

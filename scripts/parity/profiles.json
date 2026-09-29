@@ -1,0 +1,7 @@
+[
+  {},
+  { "name": "Chloe", "tone": 90, "casual": true, "myWords": ["lowkey", "  ", "rn"],
+    "rules": { "filler": "suggest", "slang": "do", "formatting": "leave" } },
+  { "name": "  Lou  ", "tone": 70, "casual": false, "notes": "  I never capitalize in texts.  ",
+    "samples": "hey!! lmk\\nok sounds good", "dictionary": [{ "say": "figma", "write": "Figma" }, { "say": " ", "write": "x" }] }
+]

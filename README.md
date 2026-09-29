@@ -58,7 +58,7 @@ Nothing, unless you turn it on:
 |---|---|---|
 | You click **Download** on a model | `huggingface.co` (Whisper models) or `github.com` (k2-fsa/sherpa-onnx releases, everything else) | Nothing; it's a one-time file download |
 | Brain = **Claude** and you've added a key | `api.anthropic.com` | The transcript text + your voice profile. Never audio |
-| Ears = **Cloud** and you've added a key | The endpoint you set (Groq / OpenAI / other) | The audio clip |
+| Ears = **Cloud** and you've added a key | The endpoint you set | The audio clip |
 
 Whisper is an open-source model from OpenAI, but running it locally does **not** call OpenAI. With local Whisper and "Local rules only", Yap is fully offline.
 
@@ -89,11 +89,11 @@ In `pnpm tauri dev`, macOS attributes mic and Accessibility permissions to your 
 
 ## iPhone app (`ios/`)
 
-A SwiftUI app plus a Yap keyboard, sharing settings, voice profile and history through an App Group (`group.io.tinkerstudio.yap`). The JSON matches the Mac app's files.
+A SwiftUI app plus a Moonshot keyboard, sharing settings, voice profile and history through an App Group (`group.io.tinkerstudio.moonshot`). The JSON matches the Mac app's files.
 
 - **Ears:** Whisper on the iPhone via [WhisperKit](https://github.com/argmaxinc/WhisperKit) (Turbo 632 MB, Small, or Base). No Apple speech model and no cloud transcription: your voice never leaves the phone. Whisper only uses the Neural Engine and CPU, never the GPU, because iOS blocks GPU work from the background.
 - **Brain:** the same Claude prompt and offline rules as the Mac (`Yap/Polish.swift` mirrors `src-tauri/src/polish.rs`).
-- **Keyboard:** iOS keyboards can't use the microphone. The keyboard's mic key opens `yap://dictate` the first time; the app turns the mic on and keeps its audio session alive in the background for 5 minutes. After that the keyboard sends start/stop through Darwin notifications and types the result it reads from shared defaults.
+- **Keyboard:** iOS keyboards can't use the microphone. The keyboard's mic key opens `moonshot://dictate` the first time; the app turns the mic on and keeps its audio session alive in the background for 5 minutes. After that the keyboard sends start/stop through Darwin notifications and types the result it reads from shared defaults.
 
 Build it:
 

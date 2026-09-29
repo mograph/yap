@@ -145,6 +145,56 @@ where
     )
 }
 
+/// A mic stream that hands each chunk of mono samples to `push` as it arrives, for Notes, which
+/// transcribes while you're still talking. Separate from the push-to-talk `Recorder`, so a note
+/// can keep running while you dictate. Samples come at the device's rate, returned alongside;
+/// dropping the stream stops it. Not Send: keep it on the thread that opened it.
+pub fn open_streaming(push: impl FnMut(&[f32]) + Send + 'static) -> Result<(cpal::Stream, u32), String> {
+    let device = cpal::default_host()
+        .default_input_device()
+        .ok_or("No microphone found. Plug one in or check your sound settings.")?;
+    let supported = device.default_input_config().map_err(|e| format!("Microphone unavailable: {e}"))?;
+    let rate = supported.sample_rate().0;
+    let channels = supported.channels() as usize;
+    let config: cpal::StreamConfig = supported.config();
+    let stream = match supported.sample_format() {
+        cpal::SampleFormat::F32 => build_streaming::<f32>(&device, &config, channels, push),
+        cpal::SampleFormat::I16 => build_streaming::<i16>(&device, &config, channels, push),
+        cpal::SampleFormat::U16 => build_streaming::<u16>(&device, &config, channels, push),
+        cpal::SampleFormat::I32 => build_streaming::<i32>(&device, &config, channels, push),
+        other => return Err(format!("Unsupported microphone format: {other:?}")),
+    }
+    .map_err(|e| format!("Couldn't open the microphone: {e}"))?;
+    stream.play().map_err(|e| format!("Couldn't start the microphone: {e}"))?;
+    Ok((stream, rate))
+}
+
+fn build_streaming<T>(
+    device: &cpal::Device,
+    config: &cpal::StreamConfig,
+    channels: usize,
+    mut push: impl FnMut(&[f32]) + Send + 'static,
+) -> Result<cpal::Stream, cpal::BuildStreamError>
+where
+    T: SizedSample,
+    f32: FromSample<T>,
+{
+    let mut mono = Vec::new();
+    device.build_input_stream(
+        config,
+        move |data: &[T], _: &cpal::InputCallbackInfo| {
+            mono.clear();
+            mono.extend(
+                data.chunks(channels)
+                    .map(|frame| frame.iter().map(|s| f32::from_sample(*s)).sum::<f32>() / channels as f32),
+            );
+            push(&mono);
+        },
+        |err| eprintln!("yap: notes mic error: {err}"),
+        None,
+    )
+}
+
 /// Box-filter + nearest resample to 16 kHz. Crude, but plenty for speech recognition.
 pub(crate) fn resample(input: &[f32], rate: u32) -> Vec<f32> {
     if rate == RATE || input.is_empty() {

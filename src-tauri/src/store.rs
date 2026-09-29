@@ -71,6 +71,8 @@ pub struct Settings {
     pub firebase_project_id: String,
     /// Not a secret: Firebase web API keys identify the project, security rules do the guarding.
     pub firebase_api_key: String,
+    /// Notes hear the Mac's own sound as the other side of a call, not just the mic.
+    pub notes_call_audio: bool,
     /// From an OAuth "Desktop app" client. Only needed to sign in with Google.
     pub google_client_id: String,
     pub google_client_secret: String,
@@ -84,7 +86,7 @@ impl Default for Settings {
             stt_engine: "local".into(),
             local_model: "large-v3-turbo-q5_0".into(),
             language: "auto".into(),
-            cloud_stt_url: "https://api.groq.com/openai/v1/audio/transcriptions".into(),
+            cloud_stt_url: "https://api.openai.com/v1/audio/transcriptions".into(),
             cloud_stt_model: "whisper-large-v3-turbo".into(),
             cloud_stt_key: String::new(),
             brain: "claude".into(),
@@ -97,10 +99,27 @@ impl Default for Settings {
             lists: "ask".into(),
             library_folder: String::new(),
             cloud_sync: false,
-            firebase_project_id: String::new(),
-            firebase_api_key: String::new(),
+            // The Moonshot/Yap project, pre-filled so setting up is a passphrase and nothing else.
+            // Neither is a secret: the security rules are what guard the data.
+            firebase_project_id: "yap-tinkerstudio".into(),
+            firebase_api_key: "AIzaSyALock_PLlhBo6sZgQPCPBsoKMQI7b4tko".into(),
             google_client_id: String::new(),
             google_client_secret: String::new(),
+            notes_call_audio: true,
+        }
+    }
+}
+
+impl Settings {
+    /// A blank Firebase project or key was never anyone's choice: builds before they were
+    /// pre-filled saved them empty. Filled in on load, so setting up is just a passphrase.
+    pub fn fill_blank_firebase(&mut self) {
+        let fresh = Settings::default();
+        if self.firebase_project_id.trim().is_empty() {
+            self.firebase_project_id = fresh.firebase_project_id;
+        }
+        if self.firebase_api_key.trim().is_empty() {
+            self.firebase_api_key = fresh.firebase_api_key;
         }
     }
 }

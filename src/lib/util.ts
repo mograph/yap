@@ -64,8 +64,10 @@ export function blocks(text: string): Block[] {
 export function summarize(list: Dictation[]) {
   const words = list.reduce((n, d) => n + d.words, 0);
   const kept = list.length ? list.reduce((n, d) => n + d.keptPct, 0) / list.length : 0;
-  // Typing at ~40 wpm vs. how long you actually talked.
-  const savedMin = list.reduce((m, d) => m + Math.max(0, d.words / 40 - d.audioSecs / 60), 0);
+  // Typing at ~40 wpm vs. how long you actually talked. Dictations that arrived without a
+  // recorded length (an older export, or another device) are skipped rather than counted as
+  // if they took no time at all, which would invent minutes you never saved.
+  const savedMin = list.reduce((m, d) => (d.audioSecs > 0 ? m + Math.max(0, d.words / 40 - d.audioSecs / 60) : m), 0);
   return { words, kept, savedMin, count: list.length };
 }
 

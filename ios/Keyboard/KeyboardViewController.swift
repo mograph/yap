@@ -8,9 +8,19 @@ final class KeyboardModel: ObservableObject {
     @Published var needsFullAccess = false
     @Published var lastResult = ""
     @Published var showsGlobe = true
+    /// A finished dictation waiting on "as said or as a list?", like the Mac's pill.
+    @Published var offer: Offer?
+
+    struct Offer: Equatable {
+        let text: String
+        let list: String
+        let started: Date
+        /// How long before it types the words as said, same as the Mac.
+        static let wait: TimeInterval = 5
+    }
 }
 
-/// The Yap keyboard. It can't use the microphone itself, so it asks the Yap app to listen and
+/// The Moonshot keyboard. It can't use the microphone itself, so it asks the Moonshot app to listen and
 /// types whatever comes back.
 final class KeyboardViewController: UIInputViewController {
     private let model = KeyboardModel()
@@ -29,7 +39,8 @@ final class KeyboardViewController: UIInputViewController {
                 guard let self, !self.model.lastResult.isEmpty else { return }
                 self.textDocumentProxy.insertText(self.model.lastResult)
             },
-            onOpenApp: { [weak self] in self?.open(URL(string: "yap://")!) })
+            onOpenApp: { [weak self] in self?.open(URL(string: "moonshot://")!) },
+            onChoose: { [weak self] useList in self?.choose(list: useList) })
         let host = UIHostingController(rootView: root)
         host.view.backgroundColor = .clear
         addChild(host)
@@ -72,14 +83,36 @@ final class KeyboardViewController: UIInputViewController {
         case "listening": model.status = "Listening… tap ■ when you're done"
         case "thinking": model.status = defaults.string(forKey: Bridge.Key.message) ?? "Thinking…"
         case "error": model.status = defaults.string(forKey: Bridge.Key.message) ?? "Something went wrong"
-        default: model.status = alive ? "Tap to talk" : "Tap the mic to wake up Yap"
+        default: model.status = alive ? "Tap to talk" : "Tap the mic to wake up Moonshot"
         }
-        // A keyboard dictation finished: type it, once.
+        // A keyboard dictation finished: type it, once. If there's a tidier version and you asked
+        // to be offered it, hold off and ask first.
         if defaults.bool(forKey: Bridge.Key.pending), let text = defaults.string(forKey: Bridge.Key.result), !text.isEmpty {
             defaults.set(false, forKey: Bridge.Key.pending)
-            textDocumentProxy.insertText(text)
-            model.lastResult = text
+            let list = defaults.string(forKey: Bridge.Key.resultList) ?? ""
+            if defaults.bool(forKey: Bridge.Key.offer) && !list.isEmpty {
+                model.offer = KeyboardModel.Offer(text: text, list: list, started: Date())
+            } else {
+                type(text)
+            }
         }
+        // No answer means as said, the same as the Mac.
+        if let offer = model.offer, Date().timeIntervalSince(offer.started) > KeyboardModel.Offer.wait {
+            choose(list: false)
+        }
+    }
+
+    private func choose(list useList: Bool) {
+        guard let offer = model.offer else { return }
+        model.offer = nil
+        type(useList ? offer.list : offer.text)
+        // Tell Moonshot, so the history shows what actually got typed.
+        if useList { Bridge.post("pickList") }
+    }
+
+    private func type(_ text: String) {
+        textDocumentProxy.insertText(text)
+        model.lastResult = text
     }
 
     private func micTapped() {
@@ -92,8 +125,8 @@ final class KeyboardViewController: UIInputViewController {
         } else {
             // The app has to be in front to turn the mic on. It starts listening right away;
             // come back here and tap ■ when you're done.
-            model.status = "Opening Yap…"
-            open(URL(string: "yap://dictate")!)
+            model.status = "Opening Moonshot…"
+            open(URL(string: "moonshot://dictate")!)
         }
     }
 

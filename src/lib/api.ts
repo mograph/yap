@@ -37,6 +37,8 @@ export interface Settings {
   cloudSync: boolean;
   firebaseProjectId: string;
   firebaseApiKey: string;
+  /** Notes hear the Mac's own sound as the other side of a call */
+  notesCallAudio: boolean;
   /** Only needed to sign in with Google */
   googleClientId: string;
   googleClientSecret: string;
@@ -101,6 +103,45 @@ export interface ModelInfo {
   installed: boolean;
 }
 
+/** One stretch of speech in a note. */
+export interface Segment {
+  /** Seconds from the start of the recording */
+  at: number;
+  /** "you" or "them" on a call; "room" in person */
+  who: "you" | "them" | "room";
+  text: string;
+}
+
+/** One line of the enhanced notes. */
+export interface Block {
+  kind: "heading" | "bullet" | "text";
+  text: string;
+  depth: number;
+  /** Added from the transcript rather than typed by you: shown greyed, as Granola does */
+  fromTranscript: boolean;
+  /** Where in the recording a transcript line came from, in seconds */
+  at: number | null;
+  who: "you" | "them" | "room" | "";
+}
+
+/** A recorded meeting, in person or on a call. */
+export interface Note {
+  id: string;
+  title: string;
+  createdAt: string;
+  mode: "person" | "call";
+  durationSecs: number;
+  segments: Segment[];
+  /** What you typed while it listened */
+  myNotes: string;
+  /** The enhanced notes as Markdown, for copying */
+  summary: string;
+  /** The enhanced notes block by block, yours and the transcript's told apart */
+  enhanced: Block[];
+  /** Something worth knowing, like why the other side of a call wasn't heard */
+  warning: string;
+}
+
 /** Cloud sync state. Never carries the passphrase or the token. */
 export interface CloudStatus {
   /** This computer is registered with Firebase, one way or the other. */
@@ -158,6 +199,13 @@ export const api = {
   cloudForget: () => invoke<CloudStatus>("cloud_forget"),
   setCloudPassphrase: (passphrase: string) => invoke<CloudStatus>("set_cloud_passphrase", { passphrase }),
   cloudSyncNow: () => invoke<string>("cloud_sync_now"),
+  notesList: () => invoke<Note[]>("notes_list"),
+  noteRecording: () => invoke<string | null>("note_recording"),
+  noteStart: (mode: Note["mode"], resume?: string) => invoke<Note>("note_start", { mode, resume: resume ?? null }),
+  noteTranscript: (id: string) => invoke<string>("note_transcript", { id }),
+  noteStop: () => invoke<Note>("note_stop"),
+  noteSave: (id: string, title: string, myNotes: string) => invoke<Note>("note_save", { id, title, myNotes }),
+  noteDelete: (id: string) => invoke<void>("note_delete", { id }),
   downloadModel: (id: string) => invoke<void>("download_model", { id }),
   deleteModel: (id: string) => invoke<void>("delete_model", { id }),
   polishText: (raw: string) => invoke<Dictation>("polish_text", { raw }),

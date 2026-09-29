@@ -1,6 +1,6 @@
 import { api, type DownloadEvent, type PhaseEvent, type Snapshot } from "./api";
 
-export type View = "home" | "voice" | "insights" | "settings";
+export type View = "home" | "notes" | "voice" | "insights" | "settings";
 
 export const app = $state<{
   snap: Snapshot | null;

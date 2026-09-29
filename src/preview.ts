@@ -5,8 +5,9 @@ import { mount } from "svelte";
 import "./app.css";
 import App from "./App.svelte";
 import Overlay from "./Overlay.svelte";
-import type { Dictation, Edit, Kind, Snapshot } from "./lib/api";
+import type { Dictation, Edit, Kind, Note, Snapshot } from "./lib/api";
 import { app, type View } from "./lib/state.svelte";
+import fixture from "./preview/notes-fixture.json";
 
 const params = new URLSearchParams(location.search);
 const ago = (hours: number) => new Date(Date.now() - hours * 3600e3).toISOString();
@@ -124,7 +125,7 @@ const snapshot: Snapshot = {
     sttEngine: "local",
     localModel: "large-v3-turbo-q5_0",
     language: "auto",
-    cloudSttUrl: "https://api.groq.com/openai/v1/audio/transcriptions",
+    cloudSttUrl: "https://api.openai.com/v1/audio/transcriptions",
     cloudSttModel: "whisper-large-v3-turbo",
     cloudSttKey: "",
     brain: "claude",
@@ -139,6 +140,7 @@ const snapshot: Snapshot = {
     cloudSync: false,
     firebaseProjectId: "",
     firebaseApiKey: "",
+    notesCallAudio: true,
     googleClientId: "",
     googleClientSecret: "",
   },
@@ -172,6 +174,31 @@ const snapshot: Snapshot = {
   envKey: false,
 };
 
+// Notes, straight from the Rust enhance run over real Whisper output (see tests.rs `launch_sync`):
+// one call you typed notes in, one in-person meeting you didn't, and with ?recording one going now.
+const notes: Note[] = [
+  { ...(fixture.typed as Note), id: "n1", createdAt: ago(2) },
+  { ...(fixture.blank as Note), id: "n2", title: "Pricing chat", createdAt: ago(30) },
+];
+const segs = (who: "you" | "them" | "room", lines: [number, string][]) => lines.map(([at, text]) => ({ at, who, text }));
+if (params.has("recording")) {
+  notes.unshift({
+    id: "live",
+    title: "Design review",
+    createdAt: ago(0.06),
+    mode: "call",
+    durationSecs: 0,
+    myNotes: "- header too heavy\n- check the empty states\n- ",
+    summary: "",
+    enhanced: [],
+    warning: "",
+    segments: [
+      ...segs("them", [[2, "Okay so first thing, the header feels too heavy. It's competing with the logo."], [41, "Can we try it without the gradient?"]]),
+      ...segs("you", [[19, "Agreed. I'll pull it back to the flat version and send it over this afternoon."]]),
+    ],
+  });
+}
+
 mockWindows("main");
 mockIPC(
   (cmd, args) => {
@@ -184,6 +211,15 @@ mockIPC(
         return true;
       case "polish_text":
         return { ...history[0], id: "try", raw: (args as { raw: string }).raw };
+      case "notes_list":
+        return structuredClone(notes);
+      case "note_recording":
+        return params.has("recording") ? "live" : null;
+      case "note_save": {
+        const a = args as { id: string; title: string; myNotes: string };
+        const n = notes.find((x) => x.id === a.id)!;
+        return { ...n, title: a.title, myNotes: a.myNotes };
+      }
       default:
         return null;
     }
@@ -213,4 +249,5 @@ if (overlay) {
 } else {
   app.view = (params.get("view") as View) ?? "home";
   mount(App, { target: document.getElementById("app")! });
+  if (params.has("recording")) setInterval(() => emit("yap://note-level", { you: 0.004 + rand() ** 2 * 0.1, them: 0.004 + rand() ** 3 * 0.12 }), 120);
 }

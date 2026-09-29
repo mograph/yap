@@ -248,6 +248,213 @@ fn a_guessable_passphrase_is_refused() {
 }
 
 #[test]
+fn a_spoken_brain_dump_becomes_tasks() {
+    // "I want to do a brain dump" and then one thing per sentence: each thing is its own task,
+    // and the announcement is the lead-in rather than the first task.
+    assert_eq!(
+        polish::as_list("Okay I want to do a brain dump. I need to fix the login bug. The settings page needs work. I should email Priya back. And the deploy is still failing."),
+        concat!(
+            "Okay I want to do a brain dump:\n",
+            "- I need to fix the login bug\n",
+            "- The settings page needs work\n",
+            "- I should email Priya back\n",
+            "- The deploy is still failing"
+        )
+    );
+    assert_eq!(
+        polish::as_list("Let me do a brain dump real quick. The onboarding copy is too long. We never shipped the empty states. Sam still owes me the icons."),
+        concat!(
+            "Let me do a brain dump real quick:\n",
+            "- The onboarding copy is too long\n",
+            "- We never shipped the empty states\n",
+            "- Sam still owes me the icons"
+        )
+    );
+    // Said as a run-on instead of separate sentences, it still comes out as tasks.
+    assert_eq!(
+        polish::as_list("Brain dump: fix the login bug, ship the icons, and email Priya"),
+        "Brain dump:\n- Fix the login bug\n- Ship the icons\n- Email Priya"
+    );
+    // Talking *about* a brain dump isn't asking for one.
+    assert_eq!(polish::as_list("The brain dump I sent you yesterday was way too long honestly."), "");
+}
+
+#[test]
+fn a_dictation_made_during_a_sync_survives_it() {
+    let d = |id: &str, at: &str| Dictation { id: id.into(), created_at: at.into(), ..Default::default() };
+    let ids = |h: &[Dictation]| {
+        let mut v = h.iter().map(|x| x.id.clone()).collect::<Vec<_>>();
+        v.sort();
+        v
+    };
+
+    // The sync starts from a snapshot holding "a", and the cloud holds "b".
+    let (mut p, mut h, mut del) = (Profile::default(), vec![d("a", "2026-09-20T10:00:00Z")], Vec::new());
+    let cloud = library::Library::new(&Profile::default(), &[d("b", "2026-09-19T10:00:00Z")], &[]);
+    let (_, synced) = library::merge(Some(&cloud), &mut p, &mut h, &mut del);
+
+    // While it was on the network, "c" was dictated here. Folding the result in keeps it.
+    let (mut now_p, mut now_h, mut now_del) =
+        (Profile::default(), vec![d("c", "2026-09-21T10:00:00Z"), d("a", "2026-09-20T10:00:00Z")], Vec::new());
+    library::merge(Some(&synced), &mut now_p, &mut now_h, &mut now_del);
+    assert_eq!(ids(&now_h), ["a", "b", "c"]);
+}
+
+#[test]
+fn blank_firebase_settings_are_filled_but_real_ones_kept() {
+    let mut blank = store::Settings { firebase_project_id: "".into(), firebase_api_key: "  ".into(), ..Default::default() };
+    blank.fill_blank_firebase();
+    assert_eq!(blank.firebase_project_id, "yap-tinkerstudio");
+    assert!(blank.firebase_api_key.starts_with("AIza"));
+
+    let mut mine = store::Settings { firebase_project_id: "my-own".into(), firebase_api_key: "mine".into(), ..Default::default() };
+    mine.fill_blank_firebase();
+    assert_eq!((mine.firebase_project_id.as_str(), mine.firebase_api_key.as_str()), ("my-own", "mine"));
+}
+
+/// What local Whisper returned for a synthesized launch sync, unpunctuated last line and all.
+fn launch_sync(my_notes: &str, call: bool) -> crate::notes::Note {
+    use crate::notes::{Note, Segment};
+    let said = [
+        (0.0, "them", "Okay, let's get started with the launch sync. The pricing page is still too busy, can we cut it down to three tiers?"),
+        (4.0, "you", "the pricing page is still too busy can we cut it down to three tiers"),
+        (8.5, "you", "Yeah, I think that works. I'll send a new pricing draft by Friday."),
+        (14.8, "them", "Great, on the beta, we decided to push it to October, because the onboarding isn't ready."),
+        (21.8, "them", "What happens to the people on the waitlist though? We need to email them this week and explain the delay. Can you draft that email?"),
+        (31.8, "you", "sure i can do that let's go with three tiers for pricing then anything else no i think that's everything thanks everyone"),
+    ];
+    let mut note = Note {
+        title: "Launch sync".into(),
+        mode: if call { "call" } else { "person" }.into(),
+        duration_secs: 42.0,
+        created_at: "2026-09-22T15:00:00+00:00".into(),
+        my_notes: my_notes.into(),
+        segments: said
+            .iter()
+            .map(|(at, who, text)| Segment { at: *at, who: if call { *who } else { "room" }.into(), text: (*text).into() })
+            .collect(),
+        ..Default::default()
+    };
+    crate::notes::lay_out(&mut note, &Profile::default());
+    note
+}
+
+#[test]
+fn enhanced_notes_build_on_what_you_typed() {
+    let note = launch_sync("- pricing still open\n- ask about the beta\n- waitlist?", true);
+    let out = &note.summary;
+    println!("{out}");
+    // Yours stay exactly as typed, each followed by what was said about it, indented.
+    assert!(out.contains(concat!(
+        "- pricing still open\n",
+        "  - The pricing page is still too busy, can we cut it down to three tiers? (them)\n",
+        "  - I'll send a new pricing draft by Friday\n",
+        "- ask about the beta\n",
+        "  - On the beta, we decided to push it to October, because the onboarding isn't ready (them)\n",
+        "- waitlist?\n",
+        "  - What happens to the people on the waitlist though? (them)\n",
+    )));
+    // On screen, the two are told apart the way Granola greys out what it added.
+    let first = &note.enhanced[0];
+    assert!(first.text == "pricing still open" && !first.from_transcript);
+    let detail = &note.enhanced[1];
+    assert!(detail.from_transcript && detail.depth == 1 && detail.who == "them" && detail.at == Some(0.0));
+    // Then what was committed to, settled and left open.
+    assert!(out.contains("## Action items\n- I'll send a new pricing draft by Friday\n- We need to email them this week and explain the delay (them)\n- Can you draft that email? (them)\n"));
+    assert!(out.contains("## Decisions\n- On the beta, we decided to push it to October, because the onboarding isn't ready (them)\n- Let's go with three tiers for pricing\n"));
+    // Opening the meeting isn't a job for anyone.
+    assert!(!out.contains("get started"));
+    // Your mic hearing their voice through the speakers isn't a second copy of it.
+    assert_eq!(out.matches("The pricing page is still too busy").count(), 2, "once under your note, once as a question");
+}
+
+#[test]
+fn with_nothing_typed_the_meeting_becomes_topics() {
+    let out = launch_sync("", true).summary;
+    println!("{out}");
+    assert!(out.contains(concat!(
+        "## Pricing\n",
+        "- The pricing page is still too busy, can we cut it down to three tiers? (them)\n",
+        "- I'll send a new pricing draft by Friday\n",
+        // Whisper's unpunctuated run-on is cut down to its point.
+        "- Let's go with three tiers for pricing\n",
+    )));
+    assert!(out.contains("## Email\n- We need to email them this week and explain the delay (them)\n- Can you draft that email? (them)\n"));
+}
+
+#[test]
+fn notes_in_person_have_no_speaker_labels() {
+    let note = launch_sync("- pricing still open", false);
+    assert!(!note.summary.contains("(them)"));
+    let transcript = crate::notes::transcript(&note);
+    assert!(transcript.starts_with("0:00  Okay, let's get started"));
+    assert!(!transcript.contains("You ·") && !transcript.contains("Them ·"));
+    // On a call, the transcript says who, and leaves out the echo.
+    let call = crate::notes::transcript(&launch_sync("", true));
+    assert!(call.starts_with("Them · 0:00  Okay"));
+    assert!(call.contains("\nYou · 0:08  Yeah, I think that works."));
+    assert!(!call.contains("0:04"));
+}
+
+#[test]
+fn whisper_filling_silence_is_not_a_line() {
+    use crate::notes::is_noise;
+    assert!(is_noise("Thank you.", 0.01));
+    assert!(is_noise("  ", 0.5));
+    // The same words said out loud are kept.
+    assert!(!is_noise("Thank you.", 0.08));
+    assert!(!is_noise("We should ship it.", 0.01));
+}
+
+#[test]
+fn recordings_are_cut_at_pauses_and_silence_is_skipped() {
+    use crate::notes::chunks_of;
+    let rate = 16_000;
+    let tone = |secs: f32| (0..(secs * rate as f32) as usize).map(|i| 0.2 * (i as f32 * 0.05).sin()).collect::<Vec<_>>();
+    let hush = |secs: f32| vec![0.0f32; (secs * rate as f32) as usize];
+
+    // 7 s of talk, a 2 s pause, 3 s of talk, then 30 s of nothing.
+    let audio: Vec<f32> = [tone(7.0), hush(2.0), tone(3.0), hush(30.0)].concat();
+    let chunks = chunks_of("room", &audio);
+    // The pause after the first stretch ends a piece early; the silence at the end is dropped.
+    assert_eq!(chunks.len(), 2, "{:?}", chunks.iter().map(|c| (c.at, c.samples.len())).collect::<Vec<_>>());
+    assert_eq!(chunks[0].at, 0.0);
+    assert!(chunks[1].at >= 7.0 && chunks[1].at <= 9.5, "second piece starts after the pause: {}", chunks[1].at);
+    assert!(chunks.iter().all(|c| c.who == "room"));
+
+    // A long monologue never goes to Whisper in one piece longer than 20 s.
+    let long = chunks_of("you", &tone(65.0));
+    assert!(long.iter().all(|c| c.samples.len() <= 20 * rate));
+    assert!((long.iter().map(|c| c.samples.len()).sum::<usize>() as i64 - 65 * rate as i64).abs() < rate as i64);
+}
+
+/// End to end through the real local model: speech → cutting → Whisper → notes.
+/// YAP_TEST_DATA=<app data dir> YAP_TEST_WAV=<16 kHz mono wav> cargo test --lib notes_end_to_end -- --ignored --nocapture
+#[test]
+#[ignore]
+fn notes_end_to_end() {
+    use crate::notes::{self, chunks_of, Note, Segment};
+    let data = std::path::PathBuf::from(std::env::var("YAP_TEST_DATA").expect("set YAP_TEST_DATA"));
+    let samples = read_wav(&std::env::var("YAP_TEST_WAV").expect("set YAP_TEST_WAV"));
+    let local = stt::Local::default();
+    let model = store::Settings::default().local_model;
+    let started = std::time::Instant::now();
+    let chunks = chunks_of("room", &samples);
+    let mut note = Note { mode: "person".into(), created_at: chrono::Utc::now().to_rfc3339(), ..Default::default() };
+    for c in &chunks {
+        let text = local.transcribe(&data, &model, &c.samples, "auto", "").unwrap();
+        println!("[{:>5.1}s, {:>4.1}s long] {text}", c.at, c.samples.len() as f32 / 16_000.0);
+        if !notes::is_noise(&text, c.loudness) {
+            note.segments.push(Segment { at: c.at, who: c.who.into(), text });
+        }
+    }
+    note.duration_secs = samples.len() as f32 / 16_000.0;
+    note.title = notes::default_title(&note);
+    println!("\n{} pieces in {:.1}s\n\n{}", chunks.len(), started.elapsed().as_secs_f32(), { let mut n = note.clone(); notes::lay_out(&mut n, &Profile::default()); n.summary });
+    assert!(!note.segments.is_empty());
+}
+
+#[test]
 fn library_import_adds_and_never_removes() {
     let mut mine = Profile::default();
     let mut theirs = Profile::default();
@@ -445,4 +652,94 @@ fn compare_models() {
         }
     }
     assert!(ran > 0, "no models found under {}/models", data.display());
+}
+
+/// Feeds sentences through the Mac's cleanup and list logic and writes what came out, so
+/// `scripts/ios-parity.sh` can hold the iPhone's Swift port to the same answers.
+/// YAP_PARITY_IN=in.json YAP_PARITY_OUT=out.json cargo test --lib parity_dump -- --ignored
+#[test]
+#[ignore]
+fn parity_dump() {
+    let input = std::env::var("YAP_PARITY_IN").expect("set YAP_PARITY_IN");
+    let output = std::env::var("YAP_PARITY_OUT").expect("set YAP_PARITY_OUT");
+    let said: Vec<String> = serde_json::from_str(&std::fs::read_to_string(input).unwrap()).unwrap();
+    let profile = Profile::default();
+    let rows: Vec<serde_json::Value> = said
+        .iter()
+        .map(|s| {
+            let clean = polish::local_rules(&profile, s).text;
+            serde_json::json!({
+                "input": s,
+                "clean": clean,
+                "list": polish::as_list(&clean),
+                "groups": polish::as_groups(&clean),
+                "listDirect": polish::as_list(s),
+                "groupsDirect": polish::as_groups(s),
+                "words": store::word_count(&clean),
+                "keptPct": format!("{:.2}", store::kept_pct(s, &clean)),
+            })
+        })
+        .collect();
+    std::fs::write(output, serde_json::to_string_pretty(&rows).unwrap()).unwrap();
+
+    // What Claude is told about the speaker, for a plain profile and two busy ones.
+    if let Ok(prompts) = std::env::var("YAP_PARITY_PROMPTS") {
+        let profiles: Vec<Profile> = serde_json::from_str(&std::fs::read_to_string(&prompts).unwrap()).unwrap();
+        let out: Vec<String> = profiles.iter().map(polish::speaker_section).collect();
+        std::fs::write(format!("{prompts}.rust"), serde_json::to_string_pretty(&out).unwrap()).unwrap();
+    }
+}
+
+/// The crypto half of `scripts/ios-parity.sh`: key derivation, passphrase rules, and sealing,
+/// so the iPhone's Swift can prove it opens what the Mac seals and the other way round.
+/// YAP_CRYPTO_MODE=derive|seal|unseal YAP_PARITY_IN=… YAP_PARITY_OUT=… cargo test --lib parity_crypto -- --ignored
+#[test]
+#[ignore]
+fn parity_crypto() {
+    use crate::cloud;
+    let input = std::fs::read_to_string(std::env::var("YAP_PARITY_IN").unwrap()).unwrap();
+    let output = std::env::var("YAP_PARITY_OUT").unwrap();
+    let out = match std::env::var("YAP_CRYPTO_MODE").unwrap().as_str() {
+        "derive" => {
+            let v: serde_json::Value = serde_json::from_str(&input).unwrap();
+            let hex = |b: &[u8]| b.iter().map(|x| format!("{x:02x}")).collect::<String>();
+            let keys: Vec<serde_json::Value> = v["keys"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|k| {
+                    let (pass, salt) = (k["pass"].as_str().unwrap(), k["salt"].as_str().unwrap());
+                    let mut short = [0u8; 16];
+                    let mut long = [0u8; 32];
+                    argon2::Argon2::default().hash_password_into(pass.as_bytes(), salt.as_bytes(), &mut short).unwrap();
+                    argon2::Argon2::default().hash_password_into(pass.as_bytes(), salt.as_bytes(), &mut long).unwrap();
+                    serde_json::json!({ "pass": pass, "salt": salt, "k16": hex(&short), "k32": hex(&long), "vault": cloud::vault_id(pass).unwrap() })
+                })
+                .collect();
+            let checks: Vec<serde_json::Value> = v["passphrases"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|p| {
+                    let p = p.as_str().unwrap();
+                    serde_json::json!({ "pass": p, "verdict": cloud::check_passphrase(p).err().unwrap_or_default() })
+                })
+                .collect();
+            serde_json::json!({ "keys": keys, "checks": checks })
+        }
+        "seal" => {
+            let v: serde_json::Value = serde_json::from_str(&input).unwrap();
+            let lib: library::Library = serde_json::from_value(v["library"].clone()).unwrap();
+            let (salt, nonce, blob) = cloud::seal(v["passphrase"].as_str().unwrap(), &lib).unwrap();
+            serde_json::json!({ "salt": salt, "nonce": nonce, "blob": blob })
+        }
+        _ => {
+            let v: serde_json::Value = serde_json::from_str(&input).unwrap();
+            let s = &v["sealed"];
+            let lib = cloud::unseal(v["passphrase"].as_str().unwrap(), s["salt"].as_str().unwrap(),
+                                    s["nonce"].as_str().unwrap(), s["blob"].as_str().unwrap()).unwrap();
+            serde_json::to_value(&lib).unwrap()
+        }
+    };
+    std::fs::write(output, serde_json::to_string_pretty(&out).unwrap()).unwrap();
 }
