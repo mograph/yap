@@ -29,7 +29,13 @@ pub fn request_accessibility(app: &AppHandle) {
     });
 }
 
-fn press_paste() -> Result<bool, String> {
+/// Sends one Ctrl/Cmd+V. A single deliberate hold (not an instant click) is reliable for both
+/// native apps and the web apps (Discord, Slack Web, Gmail) that need a moment to see the
+/// keydown - sending the gesture *twice* was tried before and just double-pasted in anything
+/// that handled the first one fine, since there's no way to detect from here whether the first
+/// one "worked". The modifier is always released even if the V press fails, since leaving Ctrl
+/// stuck down at the OS level would corrupt every keystroke the user types next.
+fn press_paste() -> Result<(), String> {
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
     let modifier = if cfg!(target_os = "macos") { Key::Meta } else { Key::Control };
     // Windows sends a `Unicode` key as a typed character, which arrives as text rather than
@@ -40,31 +46,26 @@ fn press_paste() -> Result<bool, String> {
     let v = Key::V;
     #[cfg(not(target_os = "windows"))]
     let v = Key::Unicode('v');
+    let hold = if cfg!(target_os = "windows") { 40 } else { 10 };
 
-    // Strategy 1: Standard Ctrl+V click (quick)
     enigo.key(modifier, Direction::Press).map_err(|e| e.to_string())?;
-    std::thread::sleep(Duration::from_millis(5));
-    enigo.key(v, Direction::Click).map_err(|e| e.to_string())?;
-    std::thread::sleep(Duration::from_millis(5));
+    std::thread::sleep(Duration::from_millis(hold));
+    let pressed = enigo.key(v, Direction::Click);
+    std::thread::sleep(Duration::from_millis(hold));
     enigo.key(modifier, Direction::Release).map_err(|e| e.to_string())?;
-
-    // Strategy 2 (Windows only): Retry with longer hold for web apps (Discord, Slack Web, Gmail)
-    #[cfg(target_os = "windows")]
-    {
-        std::thread::sleep(Duration::from_millis(100));
-        enigo.key(modifier, Direction::Press).map_err(|e| e.to_string())?;
-        std::thread::sleep(Duration::from_millis(50));
-        enigo.key(v, Direction::Press).map_err(|e| e.to_string())?;
-        std::thread::sleep(Duration::from_millis(50));
-        enigo.key(v, Direction::Release).map_err(|e| e.to_string())?;
-        std::thread::sleep(Duration::from_millis(50));
-        enigo.key(modifier, Direction::Release).map_err(|e| e.to_string())?;
-    }
-
-    Ok(true)
+    pressed.map_err(|e| e.to_string())
 }
 
 pub fn copy(text: &str) -> Result<(), String> {
+    let _guard = paste_lock().lock().unwrap();
+    // A manual copy means the user has taken deliberate control of the clipboard, so any
+    // restore a pending dictation still owes is now moot - bump the generation so that
+    // restore sees it's been superseded and leaves this alone instead of clobbering it later.
+    {
+        let mut st = restore_state().lock().unwrap();
+        st.generation += 1;
+        st.original = None;
+    }
     arboard::Clipboard::new()
         .and_then(|mut cb| cb.set_text(text.to_string()))
         .map_err(|e| format!("Clipboard unavailable: {e}"))
@@ -88,10 +89,33 @@ fn restore_state() -> &'static Mutex<RestoreState> {
     RESTORE.get_or_init(|| Mutex::new(RestoreState { generation: 0, original: None }))
 }
 
+/// Serializes "put text on the clipboard, then send Ctrl+V" across dictations. The generation
+/// counter above only protects the later *restore* step - it does nothing to stop a second
+/// dictation's `set_text` from landing while the first dictation's Ctrl+V is still sitting in
+/// the target window's message queue, unprocessed. When that happens, the first paste ends up
+/// reading whatever the second dictation just wrote instead of its own text: the app the first
+/// dictation was pasted into silently gets the wrong content. Holding this lock through a short
+/// settle after the keystrokes are sent (not the full clipboard-restore delay) keeps rapid
+/// dictations from racing each other, while each one's "Pasted" status still returns promptly.
+static PASTE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+fn paste_lock() -> &'static Mutex<()> {
+    PASTE_LOCK.get_or_init(|| Mutex::new(()))
+}
+
 /// Pastes into the focused app. Blocking; call off the main thread.
 /// Returns Ok(false) when the text was only copied because paste permission is missing.
 pub fn paste(app: &AppHandle, text: &str, restore: bool) -> Result<bool, String> {
+    let _guard = paste_lock().lock().unwrap();
     let mut cb = arboard::Clipboard::new().map_err(|e| format!("Clipboard unavailable: {e}"))?;
+
+    if !accessibility_ok() {
+        // Still worth putting the text on the clipboard so the user can paste it by hand, but
+        // nothing is about to be pasted, so there's no restore to track - claiming a generation
+        // here would leave it stuck with no restore thread ever spawned to resolve it.
+        cb.set_text(text.to_string()).map_err(|e| e.to_string())?;
+        return Ok(false);
+    }
 
     // Claim the next generation. If an earlier dictation's restore hasn't landed yet, keep
     // its snapshot of the real original clipboard instead of grabbing the current clipboard
@@ -108,9 +132,6 @@ pub fn paste(app: &AppHandle, text: &str, restore: bool) -> Result<bool, String>
     };
 
     cb.set_text(text.to_string()).map_err(|e| e.to_string())?;
-    if !accessibility_ok() {
-        return Ok(false);
-    }
     std::thread::sleep(Duration::from_millis(30));
 
     let (tx, rx) = mpsc::channel();
@@ -119,6 +140,11 @@ pub fn paste(app: &AppHandle, text: &str, restore: bool) -> Result<bool, String>
     })
     .map_err(|e| e.to_string())?;
     rx.recv_timeout(Duration::from_secs(2)).map_err(|e| e.to_string())??;
+
+    // Give the target app a moment to actually read the clipboard before a queued-up next
+    // dictation is allowed to overwrite it.
+    let post_settle = if cfg!(target_os = "windows") { 250 } else { 150 };
+    std::thread::sleep(Duration::from_millis(post_settle));
 
     if let Some(generation) = generation {
         // Restore happens on its own thread so a slow target app doesn't hold up the
@@ -153,13 +179,13 @@ fn restore_clipboard(generation: u64, text: &str) {
         match cb.get_text() {
             Ok(current) if current == text => {
                 let Some(prev) = st.original.clone() else { return };
-                drop(st);
+                // Hold the lock across the write itself: dropping it first would let a
+                // paste() call that's blocked claiming the next generation slip in between
+                // this check and the write, finish an entire dictation, and then have this
+                // stale restore stomp its freshly-pasted clipboard right after.
                 match cb.set_text(prev) {
                     Ok(_) => {
-                        let mut st = restore_state().lock().unwrap();
-                        if st.generation == generation {
-                            st.original = None;
-                        }
+                        st.original = None;
                         eprintln!("yap: clipboard restored after {} attempt(s)", attempt + 1);
                         return;
                     }
@@ -181,4 +207,62 @@ fn restore_clipboard(generation: u64, text: &str) {
         }
     }
     eprintln!("yap: clipboard restoration failed after {} attempts", max_retries);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Touches the real system clipboard, so it saves whatever was really there and puts it
+    /// back on drop - including if an assertion below panics - rather than leaving the dev
+    /// machine's clipboard in a test state.
+    struct RestoreGuard(Option<String>);
+    impl Drop for RestoreGuard {
+        fn drop(&mut self) {
+            if let Some(s) = self.0.take() {
+                let _ = arboard::Clipboard::new().and_then(|mut cb| cb.set_text(s));
+            }
+            let mut st = restore_state().lock().unwrap();
+            st.generation = 0;
+            st.original = None;
+        }
+    }
+
+    /// The bug this guards against: dictation A pastes and claims a restore; before its
+    /// restore fires, dictation B lands and claims the next generation. A's restore must then
+    /// see it's been superseded and leave B's paste alone - not overwrite it with the old
+    /// content, which is exactly the "pulls the last one instead of the latest" bug reported.
+    /// `restore_clipboard` sleeps for real (same multi-second settle it uses in production)
+    /// before each check, so this test takes a few seconds - that's the cost of exercising the
+    /// real timing path rather than a faked one.
+    #[test]
+    fn stale_restore_does_not_stomp_a_newer_dictation_or_a_manual_copy() {
+        let mut cb = arboard::Clipboard::new().unwrap();
+        let _guard = RestoreGuard(cb.get_text().ok());
+
+        // Dictation A pastes "A", claiming generation 1 and snapshotting the real clipboard.
+        {
+            let mut st = restore_state().lock().unwrap();
+            st.generation = 1;
+            st.original = Some("ORIGINAL".into());
+        }
+        // Dictation B lands before A's restore fires and claims the next generation.
+        cb.set_text("B".to_string()).unwrap();
+        restore_state().lock().unwrap().generation = 2;
+
+        // A's stale restore must see it's been superseded and leave B's paste alone.
+        restore_clipboard(1, "A");
+        assert_eq!(cb.get_text().unwrap(), "B", "a stale restore must not stomp a newer paste");
+
+        // A manual copy while a (different) restore is still pending must cancel it.
+        {
+            let mut st = restore_state().lock().unwrap();
+            st.generation = 3;
+            st.original = Some("STALE".into());
+        }
+        copy("manual").unwrap();
+        assert_eq!(cb.get_text().unwrap(), "manual");
+        restore_clipboard(3, "whatever was pasted");
+        assert_eq!(cb.get_text().unwrap(), "manual", "a stale restore must not override a manual copy");
+    }
 }
