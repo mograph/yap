@@ -2,8 +2,15 @@
 //! which the global shortcut API can't express. Polls the keyboard's modifier state, which
 //! needs no extra permission.
 //!
-//! Holding the key alone for a moment starts listening. If you type a key, click, scroll
-//! or add another modifier first, it was part of a shortcut and Yap stays out of the way.
+//! Holding the key alone for a moment starts listening. If you type a key, click, or add
+//! another modifier first, it was part of a shortcut and Yap stays out of the way.
+//!
+//! Scrolling counts too on macOS (CGEventSourceSecondsSinceLastEventType sees wheel events).
+//! On Windows it currently doesn't: GetAsyncKeyState has no code for wheel motion, only keys
+//! and mouse buttons, and catching it for real needs a low-level mouse hook (its own thread
+//! and message pump) rather than the polling this module otherwise does. So Alt+scroll (to
+//! zoom, say) can still start a dictation here after the hold threshold, where it wouldn't
+//! on a Mac - a known gap, not a deliberate difference.
 
 use crate::{send, AppState, Input};
 use std::time::{Duration, Instant};

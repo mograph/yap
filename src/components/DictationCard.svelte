@@ -55,9 +55,11 @@
     });
   }
 
+  let flashTimer: ReturnType<typeof setTimeout> | undefined;
   function say(msg: string) {
+    clearTimeout(flashTimer);
     flash = msg;
-    setTimeout(() => (flash = ""), 2600);
+    flashTimer = setTimeout(() => (flash = ""), 2600);
   }
 
   async function keepMine(e: Edit) {
