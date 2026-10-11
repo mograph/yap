@@ -445,6 +445,12 @@ fn start_listening(app: &AppHandle, since: Instant, locked: bool, paste: bool, t
     }
     *st.phase.lock().unwrap() = Phase::Listening { since, locked, paste, tap_locks };
     hotkey::escape_active(app, true);
+    // "Always on top" is a band other apps can also join, and whichever window asked most
+    // recently wins the front of it - re-asserting this each time a dictation starts (not just
+    // once at launch) is what keeps the overlay from losing that race over a long session.
+    if let Some(overlay) = app.get_webview_window("overlay") {
+        let _ = overlay.set_always_on_top(true);
+    }
     emit_phase(app, "listening", "", 0, locked);
 }
 
@@ -619,8 +625,12 @@ fn place_overlay(app: &AppHandle) {
         let y = origin.y as f64 + size.height as f64 - h - 84.0 * scale;
         let _ = overlay.set_position(tauri::PhysicalPosition::new(x.round() as i32, y.round() as i32));
     }
-    // Always there, fully transparent when idle, never takes clicks or focus.
+    // Always there, fully transparent when idle, never takes clicks or focus. Windows treats
+    // "always on top" as a band other apps can also join, with whichever window asked most
+    // recently winning the front of that band - re-asserting it on every show (not just once
+    // at window creation) is what keeps the overlay from silently losing that race over time.
     let _ = overlay.set_ignore_cursor_events(true);
+    let _ = overlay.set_always_on_top(true);
     let _ = overlay.show();
 }
 
@@ -896,12 +906,29 @@ fn copy_text(text: String) -> Result<(), String> {
 #[tauri::command]
 fn export_settings(app: AppHandle) -> Result<store::Settings, String> {
     let st = app.state::<AppState>();
-    let settings = st.settings.lock().unwrap().clone();
+    let mut settings = st.settings.lock().unwrap().clone();
+    // Bearer credentials, not shareable config - never let these leave the device through an
+    // export meant for company-wide defaults or a backup pasted into a doc or chat.
+    settings.anthropic_key.clear();
+    settings.cloud_stt_key.clear();
+    settings.google_client_secret.clear();
     Ok(settings)
 }
 
 #[tauri::command]
-fn import_settings(app: AppHandle, state: State<'_, AppState>, settings: store::Settings) -> Result<(), String> {
+fn import_settings(app: AppHandle, state: State<'_, AppState>, mut settings: store::Settings) -> Result<(), String> {
+    // export_settings never carries real secrets, so a blank key here means "unchanged", not
+    // "clear the key I already configured".
+    let current = app.state::<AppState>().settings.lock().unwrap().clone();
+    if settings.anthropic_key.is_empty() {
+        settings.anthropic_key = current.anthropic_key;
+    }
+    if settings.cloud_stt_key.is_empty() {
+        settings.cloud_stt_key = current.cloud_stt_key;
+    }
+    if settings.google_client_secret.is_empty() {
+        settings.google_client_secret = current.google_client_secret;
+    }
     save_settings(app, state, settings)
 }
 
