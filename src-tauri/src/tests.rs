@@ -67,7 +67,7 @@ fn one_bullet_per_thing_not_per_comma() {
     assert_eq!(polish::as_list("So I'm gonna make a list, um, yeah, okay", &prefs), "");
 }
 
-f"#[test]
+#[test]
 fn an_item_that_took_a_few_sentences_stays_one_item() {
     // Going item by item: the cue starts the item, the rest of what you said about it goes with it.
     let prefs = store::ListPreferences::default();
@@ -163,9 +163,11 @@ fn rambling_speech_is_not_chopped_into_fragments() {
 /// The other half of the same run: cues across sentences are the signal that does hold up.
 #[test]
 fn cues_across_sentences_still_group() {
+    let prefs = store::ListPreferences::default();
     assert_eq!(
         polish::as_list(
-            "Can you go through this visually? Also, there's so much random motion here. And then there's the settings, but the log is not the same. It's not the pattern of showing each hour."
+            "Can you go through this visually? Also, there's so much random motion here. And then there's the settings, but the log is not the same. It's not the pattern of showing each hour.",
+            &prefs
         ),
         concat!(
             "- Can you go through this visually?\n",

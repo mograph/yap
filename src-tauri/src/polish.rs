@@ -353,7 +353,7 @@ pub(crate) fn as_list(text: &str, prefs: &store::ListPreferences) -> String {
             continue;
         }
         // Handle numbered lists
-        if prefs.bullet_style == "number" && prefs.allow_numbered {
+        if prefs.bullet_style == "number" {
             let indent = " ".repeat(prefs.indent_spaces as usize);
             formatted = format!("{}{}. {}", indent, idx + 1, item.trim().trim_end_matches(['.', ',', ';']));
         }
@@ -379,7 +379,8 @@ pub(crate) fn as_list(text: &str, prefs: &store::ListPreferences) -> String {
 
     // Add lead-in if present
     if !lead.is_empty() {
-        result.push_str(&lead.join(", ").trim_end_matches([',', '.', ';', ':']));
+        result.push_str(lead.join(", ").trim_end_matches([',', '.', ';', ':']));
+        result.push(':');
         result.push('\n');
     }
 

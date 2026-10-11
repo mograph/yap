@@ -143,7 +143,7 @@ const snapshot: Snapshot = {
       introText: "",
       itemSpacing: "single",
       allowNumbered: false,
-      indentSpaces: 2,
+      indentSpaces: 0,
     },
     libraryFolder: "",
     cloudSync: false,

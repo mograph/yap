@@ -51,7 +51,7 @@ impl Default for ListPreferences {
             intro_text: String::new(),
             item_spacing: "single".into(),
             allow_numbered: false,
-            indent_spaces: 2,
+            indent_spaces: 0,
         }
     }
 }

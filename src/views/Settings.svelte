@@ -267,7 +267,7 @@
       {/each}
     </div>
   {/if}
-  {#if !triggers.length || s.trigger === "shortcut"}
+  {#if !triggers.length || !triggers.some((t) => t.value !== "shortcut" && t.value === s.trigger)}
     <ShortcutRecorder value={s.shortcut} platform={snap.platform} onchange={setShortcut} />
   {/if}
 </section>
@@ -543,8 +543,6 @@
     </select>
     <span class="muted small">Blank line between items.</span>
   </div>
-
-  <Toggle bind:checked={s.listPreferences.allowNumbered} label="Allow numbered lists" hint="Use 1, 2, 3 instead of bullets when appropriate" />
 
   <div class="row-field">
     <label class="label" for="indent">Indent Size</label>
