@@ -29,12 +29,16 @@ pub fn request_accessibility(app: &AppHandle) {
     });
 }
 
-/// Sends one Ctrl/Cmd+V. A single deliberate hold (not an instant click) is reliable for both
-/// native apps and the web apps (Discord, Slack Web, Gmail) that need a moment to see the
-/// keydown - sending the gesture *twice* was tried before and just double-pasted in anything
-/// that handled the first one fine, since there's no way to detect from here whether the first
-/// one "worked". The modifier is always released even if the V press fails, since leaving Ctrl
-/// stuck down at the OS level would corrupt every keystroke the user types next.
+/// Sends one Ctrl/Cmd+V as four distinct, separately-held steps (press modifier, press V,
+/// release V, release modifier) rather than a single `Direction::Click` for V, which press-
+/// and-releases with no gap in between: some apps - web apps (Discord, Slack Web, Gmail) and,
+/// it turns out, Windows Terminal / VS Code's integrated terminal among native ones - need V
+/// to actually stay down for a moment, with the modifier clearly down first, to register the
+/// chord at all. Sending the gesture *twice* was tried before and just double-pasted in
+/// anything that handled the first one fine, since there's no way to detect from here whether
+/// the first one "worked" - so this is one gesture, just a more deliberate one. The modifier
+/// is always released even if a V step fails, since leaving Ctrl stuck down at the OS level
+/// would corrupt every keystroke the user types next.
 fn press_paste() -> Result<(), String> {
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
     let modifier = if cfg!(target_os = "macos") { Key::Meta } else { Key::Control };
@@ -46,14 +50,16 @@ fn press_paste() -> Result<(), String> {
     let v = Key::V;
     #[cfg(not(target_os = "windows"))]
     let v = Key::Unicode('v');
-    let hold = if cfg!(target_os = "windows") { 40 } else { 10 };
+    let hold = if cfg!(target_os = "windows") { 50 } else { 15 };
 
     enigo.key(modifier, Direction::Press).map_err(|e| e.to_string())?;
     std::thread::sleep(Duration::from_millis(hold));
-    let pressed = enigo.key(v, Direction::Click);
+    let pressed = enigo.key(v, Direction::Press);
+    std::thread::sleep(Duration::from_millis(hold));
+    let released = enigo.key(v, Direction::Release);
     std::thread::sleep(Duration::from_millis(hold));
     enigo.key(modifier, Direction::Release).map_err(|e| e.to_string())?;
-    pressed.map_err(|e| e.to_string())
+    pressed.and(released).map_err(|e| e.to_string())
 }
 
 pub fn copy(text: &str) -> Result<(), String> {
