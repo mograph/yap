@@ -9,6 +9,8 @@ mod audio;
 mod modkey;
 #[cfg(desktop)]
 mod paste;
+#[cfg(desktop)]
+mod notes;
 #[cfg(test)]
 mod tests;
 
@@ -44,6 +46,12 @@ enum Phase {
     /// Waiting for you to pick the tidier version or "as said".
     #[cfg_attr(mobile, allow(dead_code))]
     Choosing,
+    /// A continuous Notes recording, started and stopped from the Notes view rather than
+    /// the talk key. Every push-to-talk input falls through the match while this is active
+    /// (and StartNote falls through while any dictation phase is active), so the two modes
+    /// can't both grab the mic at once.
+    #[cfg_attr(mobile, allow(dead_code))]
+    Note,
 }
 
 /// Everything that can start, finish or cancel a dictation. Handled one at a time on the
@@ -57,6 +65,9 @@ pub(crate) enum Input {
     /// The mic button in Yap's own window
     Toggle,
     Cancel,
+    StartNote { template_id: String },
+    StopNote,
+    CancelNote,
 }
 
 pub struct AppState {
@@ -64,6 +75,13 @@ pub struct AppState {
     settings: Mutex<Settings>,
     profile: Mutex<Profile>,
     history: Mutex<Vec<Dictation>>,
+    notes: Mutex<Vec<store::Note>>,
+    templates: Mutex<Vec<store::NoteTemplate>>,
+    /// Which template the in-progress Notes recording was started with - set by `begin_note`,
+    /// read back by `notes_pipeline` once recording stops. `Phase::Note` itself stays unit-like
+    /// (no payload) so it can keep deriving `Copy`, like every other `Phase` variant.
+    #[cfg(desktop)]
+    active_template: Mutex<String>,
     /// IDs of dictations you deleted, so a synced library doesn't bring them back.
     deleted: Mutex<Vec<String>>,
     /// Google sign-in and the passphrase your library is encrypted with. Owner-only on disk.
@@ -103,6 +121,16 @@ impl AppState {
         store::save(&self.file("history.json"), &history)
     }
 
+    fn save_notes(&self) -> Result<(), String> {
+        let notes = self.notes.lock().unwrap().clone();
+        store::save(&self.file("notes.json"), &notes)
+    }
+
+    fn save_templates(&self) -> Result<(), String> {
+        let templates = self.templates.lock().unwrap().clone();
+        store::save(&self.file("templates.json"), &templates)
+    }
+
     fn save_deleted(&self) -> Result<(), String> {
         let deleted = self.deleted.lock().unwrap().clone();
         store::save(&self.file("deleted.json"), &deleted)
@@ -132,6 +160,20 @@ fn emit_phase(app: &AppHandle, phase: &'static str, message: impl Into<String>, 
     emit_event(app, PhaseEvent { phase, message: message.into(), words, locked, text: String::new() });
 }
 
+/// Notes gets its own status channel rather than overloading `PhaseEvent`: a note session
+/// can run for tens of minutes with no talk-key hint and no paste target, which doesn't fit
+/// the pill's "listening/thinking/choose/done" shape built around push-to-talk.
+#[derive(Serialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct NoteStatus {
+    phase: &'static str,
+    message: String,
+}
+
+fn emit_note_status(app: &AppHandle, phase: &'static str, message: impl Into<String>) {
+    let _ = app.emit("yap://note-status", NoteStatus { phase, message: message.into() });
+}
+
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -156,6 +198,18 @@ fn record(app: &AppHandle, d: &Dictation) -> Result<(), String> {
     }
     st.save_history()?;
     let _ = app.emit("yap://dictation", d);
+    Ok(())
+}
+
+fn record_note(app: &AppHandle, n: &store::Note) -> Result<(), String> {
+    let st = app.state::<AppState>();
+    {
+        let mut notes = st.notes.lock().unwrap();
+        notes.insert(0, n.clone());
+        notes.truncate(HISTORY_LIMIT);
+    }
+    st.save_notes()?;
+    let _ = app.emit("yap://note", n);
     Ok(())
 }
 
@@ -431,6 +485,9 @@ fn dictation_loop(app: AppHandle, inputs: mpsc::Receiver<Input>) {
             (Input::Toggle, Phase::Idle) => start_listening(&app, Instant::now(), true, false, false),
             (Input::Toggle, Phase::Listening { .. }) => finish(&app),
             (Input::Cancel, Phase::Listening { .. }) => cancel(&app),
+            (Input::StartNote { template_id }, Phase::Idle) => begin_note(&app, template_id),
+            (Input::StopNote, Phase::Note) => finish_note(&app),
+            (Input::CancelNote, Phase::Note) => discard_note(&app),
             _ => {}
         }
     }
@@ -472,6 +529,112 @@ fn cancel(app: &AppHandle) {
     st.recorder.stop();
     hotkey::escape_active(app, false);
     emit_phase(app, "idle", "Cancelled", 0, false);
+}
+
+#[cfg(desktop)]
+fn begin_note(app: &AppHandle, template_id: String) {
+    let st = app.state::<AppState>();
+    if let Err(e) = st.recorder.start() {
+        emit_note_status(app, "error", e);
+        return;
+    }
+    *st.active_template.lock().unwrap() = template_id;
+    *st.phase.lock().unwrap() = Phase::Note;
+    emit_note_status(app, "recording", "");
+}
+
+#[cfg(desktop)]
+fn discard_note(app: &AppHandle) {
+    let st = app.state::<AppState>();
+    *st.phase.lock().unwrap() = Phase::Idle;
+    st.recorder.stop();
+    emit_note_status(app, "idle", "Cancelled");
+}
+
+#[cfg(desktop)]
+fn finish_note(app: &AppHandle) {
+    {
+        let st = app.state::<AppState>();
+        *st.phase.lock().unwrap() = Phase::Working;
+    }
+    emit_note_status(app, "structuring", "Transcribing…");
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let result = notes_pipeline(&app).await;
+        *app.state::<AppState>().phase.lock().unwrap() = Phase::Idle;
+        match result {
+            Ok(Some(_)) => emit_note_status(&app, "idle", ""),
+            Ok(None) => emit_note_status(&app, "idle", "Didn't catch that"),
+            Err(e) => emit_note_status(&app, "error", e),
+        }
+    });
+}
+
+/// Mirrors `pipeline()`'s shape (stop the recorder, transcribe, then the mode-specific
+/// step - here `notes::structure` instead of `polish::run`) but `structure` never fails,
+/// so the only early-return here is "too little audio to bother with", same threshold as
+/// a regular dictation.
+#[cfg(desktop)]
+async fn notes_pipeline(app: &AppHandle) -> Result<Option<store::Note>, String> {
+    let st = app.state::<AppState>();
+    let recorder = st.recorder.clone();
+    let samples = tauri::async_runtime::spawn_blocking(move || recorder.stop())
+        .await
+        .map_err(|e| e.to_string())?;
+    let audio_secs = samples.len() as f32 / audio::RATE as f32;
+    let level = audio::rms(&samples);
+    if audio_secs < 0.3 || level < 0.002 {
+        eprintln!("yap: nothing to transcribe — {audio_secs:.2}s of audio, level {level:.5}");
+        return Ok(None);
+    }
+
+    let settings = st.settings.lock().unwrap().clone();
+    let profile = st.profile.lock().unwrap().clone();
+    let started = Instant::now();
+    let raw = transcribe(app, &settings, &profile, samples).await?;
+    let stt_ms = started.elapsed().as_millis() as u64;
+    if raw.is_empty() {
+        eprintln!("yap: the model heard {audio_secs:.2}s at level {level:.5} but returned no words");
+        return Ok(None);
+    }
+    eprintln!("yap: transcribed {audio_secs:.2}s of audio in {stt_ms}ms, {} characters", raw.chars().count());
+
+    emit_note_status(app, "structuring", "Structuring your note…");
+    let chosen = st.active_template.lock().unwrap().clone();
+    let template_id = if chosen == notes::AUTO {
+        let templates: Vec<_> = st.templates.lock().unwrap().iter().filter(|t| t.enabled).cloned().collect();
+        notes::classify(&settings, &raw, &templates).await
+    } else {
+        chosen
+    };
+    let template_md = st
+        .templates
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|t| t.id == template_id)
+        .map(|t| t.content.clone())
+        .unwrap_or_default();
+    let structured = notes::structure(&settings, &raw, &template_id, &template_md).await;
+
+    let note = store::Note {
+        id: uuid::Uuid::new_v4().to_string(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        title: structured.title,
+        summary: structured.summary,
+        chapters: structured.chapters,
+        decisions: structured.decisions,
+        action_items: structured.action_items,
+        raw,
+        audio_secs,
+        stt_ms,
+        structure_ms: structured.structure_ms,
+        engine: structured.engine,
+        note: structured.note,
+        template_id: structured.template_id,
+    };
+    record_note(app, &note)?;
+    Ok(Some(note))
 }
 
 #[cfg(desktop)]
@@ -672,6 +835,8 @@ struct Snapshot {
     settings: Settings,
     profile: Profile,
     history: Vec<Dictation>,
+    notes: Vec<store::Note>,
+    templates: Vec<store::NoteTemplate>,
     models: Vec<stt::ModelInfo>,
     platform: &'static str,
     accessibility: bool,
@@ -684,6 +849,8 @@ fn get_snapshot(state: State<'_, AppState>) -> Snapshot {
         settings: state.settings.lock().unwrap().clone(),
         profile: state.profile.lock().unwrap().clone(),
         history: state.history.lock().unwrap().clone(),
+        notes: state.notes.lock().unwrap().clone(),
+        templates: state.templates.lock().unwrap().clone(),
         models: stt::models(&state.data_dir),
         platform: std::env::consts::OS,
         accessibility: accessibility(),
@@ -880,6 +1047,188 @@ fn toggle_dictation(app: AppHandle) {
 }
 
 #[tauri::command]
+fn start_note(app: AppHandle, template_id: String) {
+    #[cfg(desktop)]
+    send(&app, Input::StartNote { template_id });
+    #[cfg(mobile)]
+    let _ = (app, template_id);
+}
+
+#[tauri::command]
+fn stop_note(app: AppHandle) {
+    #[cfg(desktop)]
+    send(&app, Input::StopNote);
+    #[cfg(mobile)]
+    let _ = app;
+}
+
+#[tauri::command]
+fn cancel_note(app: AppHandle) {
+    #[cfg(desktop)]
+    send(&app, Input::CancelNote);
+    #[cfg(mobile)]
+    let _ = app;
+}
+
+#[tauri::command]
+fn delete_note(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state.notes.lock().unwrap().retain(|n| n.id != id);
+    state.save_notes()
+}
+
+#[tauri::command]
+fn toggle_action_item(state: State<'_, AppState>, note_id: String, item_id: String) -> Result<(), String> {
+    {
+        let mut notes = state.notes.lock().unwrap();
+        if let Some(note) = notes.iter_mut().find(|n| n.id == note_id) {
+            if let Some(item) = note.action_items.iter_mut().find(|i| i.id == item_id) {
+                item.done = !item.done;
+            }
+        }
+    }
+    state.save_notes()
+}
+
+/// Creates a new template (empty id) or updates an existing one (id matches).
+#[tauri::command]
+fn save_template(state: State<'_, AppState>, mut template: store::NoteTemplate) -> Result<store::NoteTemplate, String> {
+    let mut templates = state.templates.lock().unwrap();
+    match templates.iter_mut().find(|t| t.id == template.id && !t.id.is_empty()) {
+        Some(existing) => *existing = template.clone(),
+        None => {
+            template.id = uuid::Uuid::new_v4().to_string();
+            templates.push(template.clone());
+        }
+    }
+    drop(templates);
+    state.save_templates()?;
+    Ok(template)
+}
+
+#[tauri::command]
+fn delete_template(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state.templates.lock().unwrap().retain(|t| t.id != id);
+    state.save_templates()
+}
+
+#[tauri::command]
+fn toggle_template_enabled(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    {
+        let mut templates = state.templates.lock().unwrap();
+        if let Some(t) = templates.iter_mut().find(|t| t.id == id) {
+            t.enabled = !t.enabled;
+        }
+    }
+    state.save_templates()
+}
+
+/// Reads a hand-authored Markdown file as a template: a leading `# Title` line is the
+/// name, an optional `> blockquote` right after it is the one-line description shown on
+/// the picker card, and everything else is the structuring content. A file with neither
+/// convention still imports fine - the filename becomes the name and the whole file
+/// becomes the content - so this never rejects a plain, undecorated .md file.
+fn parse_template_md(text: &str, fallback_name: &str) -> store::NoteTemplate {
+    let mut lines = text.lines();
+    let mut name = None;
+    let mut description = String::new();
+    let mut rest_start = 0usize;
+    let all_lines: Vec<&str> = text.lines().collect();
+
+    for (i, line) in all_lines.iter().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if name.is_none() {
+            if let Some(title) = trimmed.strip_prefix("# ") {
+                name = Some(title.trim().to_string());
+                rest_start = i + 1;
+                continue;
+            }
+            break; // No leading title - treat the whole file as content.
+        }
+        if let Some(desc) = trimmed.strip_prefix("> ") {
+            description = desc.trim().to_string();
+            rest_start = i + 1;
+        }
+        break;
+    }
+    let _ = &mut lines;
+
+    let content = all_lines[rest_start.min(all_lines.len())..].join("\n").trim().to_string();
+    let content = if content.is_empty() { text.trim().to_string() } else { content };
+
+    store::NoteTemplate {
+        id: String::new(),
+        name: name.unwrap_or_else(|| fallback_name.to_string()),
+        description,
+        content,
+        enabled: true,
+    }
+}
+
+#[tauri::command]
+fn import_template(state: State<'_, AppState>, path: String) -> Result<store::NoteTemplate, String> {
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("Couldn't read that file: {e}"))?;
+    let fallback_name = std::path::Path::new(&path)
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "Imported template".into());
+    let mut template = parse_template_md(&text, &fallback_name);
+    template.id = uuid::Uuid::new_v4().to_string();
+
+    state.templates.lock().unwrap().push(template.clone());
+    state.save_templates()?;
+    Ok(template)
+}
+
+/// Re-structures an already-transcribed note with a (possibly different) template - no need
+/// to re-record, since the raw transcript is kept. A fresh structuring means fresh action
+/// items too (new ids, unchecked): there's no reliable way to match old items to new ones
+/// across a template change, so this is a real redo, not a patch.
+#[tauri::command]
+async fn restructure_note(state: State<'_, AppState>, id: String, template_id: String) -> Result<store::Note, String> {
+    #[cfg(desktop)]
+    {
+        let (settings, raw) = {
+            let notes = state.notes.lock().unwrap();
+            let note = notes.iter().find(|n| n.id == id).ok_or("That note isn't here anymore.")?;
+            (state.settings.lock().unwrap().clone(), note.raw.clone())
+        };
+        let template_id = if template_id == notes::AUTO {
+            let templates: Vec<_> = state.templates.lock().unwrap().iter().filter(|t| t.enabled).cloned().collect();
+            notes::classify(&settings, &raw, &templates).await
+        } else {
+            template_id
+        };
+        let template_md = state.templates.lock().unwrap().iter().find(|t| t.id == template_id).map(|t| t.content.clone()).unwrap_or_default();
+        let structured = notes::structure(&settings, &raw, &template_id, &template_md).await;
+
+        let updated = {
+            let mut notes = state.notes.lock().unwrap();
+            let note = notes.iter_mut().find(|n| n.id == id).ok_or("That note isn't here anymore.")?;
+            note.title = structured.title;
+            note.summary = structured.summary;
+            note.chapters = structured.chapters;
+            note.decisions = structured.decisions;
+            note.action_items = structured.action_items;
+            note.structure_ms = structured.structure_ms;
+            note.engine = structured.engine;
+            note.note = structured.note;
+            note.template_id = structured.template_id;
+            note.clone()
+        };
+        state.save_notes()?;
+        Ok(updated)
+    }
+    #[cfg(mobile)]
+    {
+        let _ = (state, id, template_id);
+        Err("Notes isn't available on mobile yet.".into())
+    }
+}
+
+#[tauri::command]
 fn request_accessibility(app: AppHandle) {
     #[cfg(desktop)]
     paste::request_accessibility(&app);
@@ -932,6 +1281,105 @@ fn import_settings(app: AppHandle, state: State<'_, AppState>, mut settings: sto
     save_settings(app, state, settings)
 }
 
+/// Note templates Yap ships with. Added on first run, and any new ones added here land for
+/// existing users too (whichever of these ids they don't already have) - see the seeding
+/// loop in `run()`'s setup, which never touches a template a user has renamed or edited.
+/// Plain data, not gated to desktop: Notes itself is desktop-only for now, but the seeding
+/// loop that calls this runs for every platform `run()` builds for.
+fn built_in_templates() -> Vec<(&'static str, &'static str, &'static str, &'static str)> {
+    vec![
+        ("default", "Default", "General notes - groups by topic, pulls out decisions and action items.", "\
+General notes: group the transcript into a few clearly-titled chapters by topic, call \
+out anything the speaker settled on as a decision, and list any promise, offer or \
+assignment as an action item."),
+
+        ("ux-feedback", "UX feedback", "Design feedback on a screen or prototype - groups by UI area, separates what's wrong from what's working.", "\
+Design/UX feedback on something the speaker was looking at while talking (a screen, a \
+prototype, a live app). Structure it to be useful to both a designer and an engineer: \
+group chapters by UI area or screen, not by time (e.g. \"Header\", \"Onboarding flow\", \
+\"Settings page\"), one chapter per area. Within each chapter, separate what's wrong \
+from what's working - don't just list complaints. A decision is something the speaker \
+explicitly settled on (a direction, a color, a layout choice), not a passing preference. \
+Each action item should be a concrete, scoped change: \"the button is too orange\" alone \
+isn't enough - look for what the speaker actually wants instead (\"tone it down\", \
+\"match the brand blue\") and write the item as that change; if they never said what \
+they want, write the item as the problem itself rather than inventing a fix. Skip vague \
+praise (\"looks good\") unless it's about a specific element worth keeping as-is."),
+
+        ("design-tasks-claude-code", "Design tasks for Claude Code", "Turns design feedback into ready-to-hand-off tickets: specific element, specific change, a way to verify it's done.", "\
+This recording is UX/design feedback meant to turn directly into engineering tasks for \
+an AI coding agent to pick up. Optimize for actionability over narrative. Chapters group \
+related changes by component or file area if the speaker named one (e.g. \"ModelPicker\", \
+\"Settings page\"), otherwise by UI area. Every action item must read like a ready-to-\
+hand-off ticket with three things in it: the specific element, the specific change to \
+make, and a concrete way to tell it's done (what it should look or behave like \
+afterward) - \"fix the spacing\" is not acceptable, \"increase gap between sidebar nav \
+items from 2px to 8px so they read as grouped with their icons\" is. Use the speaker's \
+own numbers or comparisons when they gave any; when they didn't, describe the change \
+precisely enough that someone could implement and verify it without re-asking what they \
+meant. If the speaker compared something to another app or screen (\"like how Slack does \
+X\"), keep that reference - it's useful context for whoever implements it. Decisions are \
+firm calls the speaker made (\"we're going with the card layout\"), not things they're \
+still deciding between. Do not soften or generalize specific critiques into vague ones - \
+precision is more useful than politeness here."),
+
+        ("visual-bug-report", "Visual bug report", "Walking through specific bugs you noticed - one per chapter, what you saw vs. what you expected.", "\
+The speaker is walking through specific visual or interaction bugs they noticed, not \
+general feedback. Structure each like a bug report: one chapter per distinct bug, titled \
+with where it is (e.g. \"Settings > List Formatting section\"). Each chapter's body \
+states what they saw (actual), what they expected, and anything they said about when or \
+how it happens (e.g. \"only on Windows\", \"after resizing the window\"). Action items \
+restate each bug as a fix to make, in the same place-specific terms. Don't merge two \
+different bugs into one chapter even if they're in the same area - keep them separable \
+so each can be tracked independently. Decisions stay empty unless the speaker explicitly \
+chose between two ways to fix something."),
+
+        ("like-wish-what-if", "I Like, I Wish, What If", "Stanford's design critique framework: 1) what's working, 2) problems framed as wishes, 3) ideas framed as experiments.", "\
+Design feedback using Stanford d.school's \"I Like, I Wish, What If\" critique \
+framework: positive and structured rather than a flat list of complaints. Use exactly \
+three chapters, in this order, and skip one entirely if the speaker never said anything \
+in that register (don't invent content to fill it): \"I Like\" - what's genuinely \
+working and should be kept, cited specifically rather than generic praise; \"I Wish\" - \
+problems framed as desires rather than failures, e.g. \"I wish the nav felt less \
+cluttered\" rather than \"the nav is bad\"; \"What If\" - ideas framed as experiments to \
+try, not orders, e.g. \"what if the sidebar collapsed by default\". Decisions stay empty \
+unless the speaker explicitly committed to trying one of the \"what if\" ideas. Action \
+items come only from \"what if\" ideas the speaker treated as worth actually doing, not \
+every passing hypothetical they floated."),
+
+        ("one-on-one", "1:1 meeting", "A one-on-one conversation - groups by topic, captures feedback both ways, decisions and commitments with owners.", "\
+A recurring one-on-one between two people (manager/report, mentor/mentee, or peers). \
+Chapters group by topic raised (e.g. \"Current project\", \"Career growth\", \
+\"Blockers\"), not strictly in spoken order. Capture feedback given in either direction \
+as its own chapter if there was any. Decisions are things agreed on during the \
+conversation (a role change, a plan, how to handle something). Action items are \
+commitments either person made, with owner set to whoever committed to it when the \
+transcript makes that clear - leave owner blank rather than guessing when it's \
+ambiguous."),
+
+        ("sprint-retro", "Sprint retro", "Team retrospective: what went well, what didn't, what we're changing - with owners on the follow-ups.", "\
+A team retrospective. Use exactly three chapters - \"What went well\", \"What didn't go \
+well\", and \"What we're changing\" - and skip one entirely if nothing was said in that \
+category rather than forcing content into it. Decisions are process changes the team \
+actually agreed to adopt. Action items are concrete follow-ups with an owner, pulled from \
+\"What we're changing\": a vague sentiment (\"we should communicate better\") isn't an \
+action item unless the speaker turned it into something specific someone will actually \
+do."),
+
+        ("user-research-synthesis", "User research synthesis", "Debriefing a user interview or usability test - groups by theme, separates observed behavior from your interpretation.", "\
+The speaker is debriefing after a user interview or usability test, not describing their \
+own opinion. Structure it to extract signal from one session: group chapters by theme \
+that emerged (a recurring pain point, a workaround the user had built, a moment of \
+confusion), not by the order questions were asked. Each chapter's body separates what \
+the user actually did or said (observed behavior, direct quotes if the speaker gave any) \
+from the speaker's own interpretation of why. Decisions stay empty unless this was a \
+working session that ended in actual agreement on a change - rare for a single research \
+debrief, so don't force one. Action items are things worth investigating further or \
+validating with more users, not conclusions drawn from one session alone - phrase each \
+as a hypothesis to test, not a settled fact."),
+    ]
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -947,6 +1395,35 @@ pub fn run() {
             let settings: Settings = store::load(&data_dir.join("settings.json"));
             let profile: Profile = store::load(&data_dir.join("profile.json"));
             let history: Vec<Dictation> = store::load(&data_dir.join("history.json"));
+            let notes: Vec<store::Note> = store::load(&data_dir.join("notes.json"));
+            let templates_path = data_dir.join("templates.json");
+            let mut templates: Vec<store::NoteTemplate> = store::load(&templates_path);
+            let mut templates_changed = false;
+            for (id, name, description, content) in built_in_templates() {
+                match templates.iter_mut().find(|t| t.id == id) {
+                    // Backfill the new description field on an existing built-in - it was
+                    // never there to edit, so there's nothing of the user's to clobber.
+                    // Name and content are left alone in case the user customized them.
+                    Some(t) if t.description.is_empty() => {
+                        t.description = description.into();
+                        templates_changed = true;
+                    }
+                    Some(_) => {}
+                    None => {
+                        templates.push(store::NoteTemplate {
+                            id: id.into(),
+                            name: name.into(),
+                            description: description.into(),
+                            content: content.into(),
+                            enabled: true,
+                        });
+                        templates_changed = true;
+                    }
+                }
+            }
+            if templates_changed {
+                let _ = store::save(&templates_path, &templates);
+            }
             let account: cloud::Account = store::load(&data_dir.join("account.json"));
             let deleted: Vec<String> = store::load(&data_dir.join("deleted.json"));
             #[cfg(desktop)]
@@ -960,6 +1437,10 @@ pub fn run() {
                 settings: Mutex::new(settings),
                 profile: Mutex::new(profile),
                 history: Mutex::new(history),
+                notes: Mutex::new(notes),
+                templates: Mutex::new(templates),
+                #[cfg(desktop)]
+                active_template: Mutex::new(String::new()),
                 deleted: Mutex::new(deleted),
                 account: Mutex::new(account),
                 phase: Mutex::new(Phase::Idle),
@@ -1029,6 +1510,16 @@ pub fn run() {
             copy_text,
             export_settings,
             import_settings,
+            start_note,
+            stop_note,
+            cancel_note,
+            delete_note,
+            toggle_action_item,
+            save_template,
+            delete_template,
+            restructure_note,
+            toggle_template_enabled,
+            import_template,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Yap")

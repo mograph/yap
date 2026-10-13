@@ -1,17 +1,19 @@
-import { api, type DownloadEvent, type PhaseEvent, type Snapshot } from "./api";
+import { api, type DownloadEvent, type NoteStatus, type PhaseEvent, type Snapshot } from "./api";
 
-export type View = "home" | "voice" | "insights" | "settings";
+export type View = "home" | "voice" | "insights" | "notes" | "settings";
 
 export const app = $state<{
   snap: Snapshot | null;
   view: View;
   phase: PhaseEvent;
+  noteStatus: NoteStatus;
   downloads: Record<string, DownloadEvent>;
   error: string;
 }>({
   snap: null,
   view: "home",
   phase: { phase: "idle", message: "", words: 0, locked: false, text: "" },
+  noteStatus: { phase: "idle", message: "" },
   downloads: {},
   error: "",
 });

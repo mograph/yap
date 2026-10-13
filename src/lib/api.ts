@@ -95,6 +95,62 @@ export interface Dictation {
   list?: string;
 }
 
+export interface Chapter {
+  title: string;
+  body: string;
+}
+
+export interface ActionItem {
+  id: string;
+  text: string;
+  owner: string;
+  done: boolean;
+}
+
+/** A continuous, start/stop recording turned into a structured note - Granola-style
+ *  notes mode, alongside push-to-talk dictation. */
+export interface Note {
+  id: string;
+  createdAt: string;
+  title: string;
+  summary: string;
+  chapters: Chapter[];
+  decisions: string[];
+  actionItems: ActionItem[];
+  raw: string;
+  audioSecs: number;
+  sttMs: number;
+  structureMs: number;
+  engine: string;
+  note: string;
+  templateId: string;
+}
+
+/** A user-authored Markdown template telling note structuring what mode a note was
+ *  recorded in (e.g. "Design feedback") and what to focus on. */
+export interface NoteTemplate {
+  id: string;
+  name: string;
+  /** Short, human-facing summary shown on the picker card - distinct from `content`,
+   *  the longer instructions actually sent to Claude. */
+  description: string;
+  content: string;
+  /** Whether this is offered in pickers (and eligible for auto-pick) at all. */
+  enabled: boolean;
+}
+
+/** Built-in templates that are actually about feedback/critique, as opposed to general
+ *  meeting formats (1:1, retro) or the plain default. Shared by every surface that offers
+ *  the auto-pick template cards, so a note landing on one of these - whether freshly
+ *  created or regenerated - consistently gets its picker surfaced for confirmation. */
+export const FEEDBACK_TEMPLATE_IDS = new Set([
+  "ux-feedback",
+  "design-tasks-claude-code",
+  "visual-bug-report",
+  "like-wish-what-if",
+  "user-research-synthesis",
+]);
+
 export interface ModelInfo {
   id: string;
   label: string;
@@ -131,10 +187,17 @@ export interface Snapshot {
   settings: Settings;
   profile: Profile;
   history: Dictation[];
+  notes: Note[];
+  templates: NoteTemplate[];
   models: ModelInfo[];
   platform: string;
   accessibility: boolean;
   envKey: boolean;
+}
+
+export interface NoteStatus {
+  phase: "idle" | "recording" | "structuring" | "error";
+  message: string;
 }
 
 export interface PhaseEvent {
@@ -181,6 +244,16 @@ export const api = {
   copy: (text: string) => invoke<void>("copy_text", { text }),
   exportSettings: () => invoke<Settings>("export_settings"),
   importSettings: (settings: Settings) => invoke<void>("import_settings", { settings }),
+  startNote: (templateId: string) => invoke<void>("start_note", { templateId }),
+  stopNote: () => invoke<void>("stop_note"),
+  cancelNote: () => invoke<void>("cancel_note"),
+  deleteNote: (id: string) => invoke<void>("delete_note", { id }),
+  toggleActionItem: (noteId: string, itemId: string) => invoke<void>("toggle_action_item", { noteId, itemId }),
+  saveTemplate: (template: NoteTemplate) => invoke<NoteTemplate>("save_template", { template }),
+  deleteTemplate: (id: string) => invoke<void>("delete_template", { id }),
+  restructureNote: (id: string, templateId: string) => invoke<Note>("restructure_note", { id, templateId }),
+  toggleTemplateEnabled: (id: string) => invoke<void>("toggle_template_enabled", { id }),
+  importTemplate: (path: string) => invoke<NoteTemplate>("import_template", { path }),
 };
 
 export const KINDS: Kind[] = [

@@ -247,6 +247,75 @@ pub struct Dictation {
     pub list: String,
 }
 
+/// One section of a structured note.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Chapter {
+    pub title: String,
+    pub body: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ActionItem {
+    pub id: String,
+    pub text: String,
+    /// Who volunteered or was assigned, when the note said so
+    pub owner: String,
+    pub done: bool,
+}
+
+/// A continuous, start/stop recording turned into a structured note - the "notes" mode
+/// alongside push-to-talk dictation, modeled on open-granola's EnhancedNote shape.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Note {
+    pub id: String,
+    pub created_at: String,
+    pub title: String,
+    pub summary: String,
+    pub chapters: Vec<Chapter>,
+    pub decisions: Vec<String>,
+    pub action_items: Vec<ActionItem>,
+    pub raw: String,
+    pub audio_secs: f32,
+    pub stt_ms: u64,
+    /// Time spent turning the transcript into a structured note
+    pub structure_ms: u64,
+    /// Which brain structured it, e.g. "claude-opus-5" or "raw transcript"
+    pub engine: String,
+    /// Anything the user should know, e.g. why Claude was skipped
+    pub note: String,
+    /// Which NoteTemplate structured it, or "" for the built-in default
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub template_id: String,
+}
+
+/// A user-authored Markdown template telling the note-structuring step what to focus on
+/// and what structure to follow, e.g. "Design feedback" vs a generic meeting template -
+/// the "mode" a note session is recorded in. Modeled on open-granola's `template_md`
+/// parameter to its enhance step.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct NoteTemplate {
+    pub id: String,
+    pub name: String,
+    /// Short, human-facing summary shown on the picker card - what kind of recording this
+    /// is for and roughly how it gets structured. Distinct from `content`, which is the
+    /// (longer, written-for-Claude) actual structuring instructions.
+    pub description: String,
+    pub content: String,
+    /// Whether this template is offered in the picker (and eligible for auto-pick) at all.
+    /// Defaults true so a templates.json saved before this field existed - every template
+    /// anyone already has - comes back enabled rather than silently disappearing.
+    #[serde(default = "enabled_by_default")]
+    pub enabled: bool,
+}
+
+fn enabled_by_default() -> bool {
+    true
+}
+
 pub fn load<T: DeserializeOwned + Default>(path: &Path) -> T {
     let Ok(text) = fs::read_to_string(path) else {
         return T::default();

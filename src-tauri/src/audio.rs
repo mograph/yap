@@ -90,7 +90,9 @@ impl Sink {
         drop(buf);
         if self.last_emit.elapsed() >= Duration::from_millis(40) && self.n > 0 {
             let rms = (self.sum_sq / self.n as f32).sqrt();
-            let _ = self.app.emit_to("overlay", "yap://level", rms);
+            // Broadcast rather than scope to "overlay": Notes.svelte, in the main window,
+            // wants a live level meter during a note recording too.
+            let _ = self.app.emit("yap://level", rms);
             self.sum_sq = 0.0;
             self.n = 0;
             self.last_emit = Instant::now();

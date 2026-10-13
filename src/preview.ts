@@ -121,6 +121,8 @@ history.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 const platform = params.get("platform") ?? "macos";
 
 const snapshot: Snapshot = {
+  notes: [],
+  templates: [],
   settings: {
     trigger: platform === "macos" ? "option" : "right-ctrl",
     shortcut: platform === "macos" ? "Alt+Space" : "Ctrl+Shift+Space",

@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { fly } from "svelte/transition";
   import { listen } from "@tauri-apps/api/event";
-  import { api, CLAUDE_MODELS, type Dictation, type DownloadEvent, type PhaseEvent } from "./lib/api";
+  import { api, CLAUDE_MODELS, type Dictation, type DownloadEvent, type Note, type NoteStatus, type PhaseEvent } from "./lib/api";
   import { app, refresh, type View } from "./lib/state.svelte";
   import { handsFreeHint, talkKey } from "./lib/util";
   import BrandMark from "./components/BrandMark.svelte";
@@ -11,12 +11,14 @@
   import Home from "./views/Home.svelte";
   import Voice from "./views/Voice.svelte";
   import Insights from "./views/Insights.svelte";
+  import Notes from "./views/Notes.svelte";
   import SettingsView from "./views/Settings.svelte";
 
   const nav: { id: View; label: string; icon: string }[] = [
     { id: "home", label: "Home", icon: "home" },
     { id: "voice", label: "Your voice", icon: "sliders" },
     { id: "insights", label: "Insights", icon: "chart" },
+    { id: "notes", label: "Notes", icon: "list" },
     { id: "settings", label: "Settings", icon: "gear" },
   ];
 
@@ -26,6 +28,10 @@
       listen<PhaseEvent>("yap://state", (e) => (app.phase = e.payload)),
       listen<Dictation>("yap://dictation", (e) => {
         app.snap?.history.unshift(e.payload);
+      }),
+      listen<NoteStatus>("yap://note-status", (e) => (app.noteStatus = e.payload)),
+      listen<Note>("yap://note", (e) => {
+        app.snap?.notes.unshift(e.payload);
       }),
       listen<DownloadEvent>("yap://download", (e) => {
         app.downloads[e.payload.id] = e.payload;
@@ -102,6 +108,8 @@
             <Voice />
           {:else if app.view === "insights"}
             <Insights />
+          {:else if app.view === "notes"}
+            <Notes />
           {:else}
             <SettingsView />
           {/if}

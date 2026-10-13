@@ -476,7 +476,7 @@ pub(crate) fn as_groups(text: &str) -> String {
         .join("\n\n")
 }
 
-fn api_key(settings: &Settings) -> Option<String> {
+pub(crate) fn api_key(settings: &Settings) -> Option<String> {
     let key = settings.anthropic_key.trim();
     if !key.is_empty() {
         return Some(key.to_string());
@@ -485,20 +485,38 @@ fn api_key(settings: &Settings) -> Option<String> {
 }
 
 async fn claude(settings: &Settings, profile: &Profile, raw: &str, key: &str) -> Result<Cleaned, String> {
+    let system = vec![
+        json!({ "type": "text", "text": INSTRUCTIONS }),
+        json!({ "type": "text", "text": speaker_section(profile), "cache_control": { "type": "ephemeral" } }),
+    ];
+    let user = format!("<transcript>\n{raw}\n</transcript>");
+    let text = claude_json(settings, system, user, output_schema(), 16000, key).await?;
+    serde_json::from_str(&text).map_err(|e| format!("Couldn't read Claude's answer: {e}"))
+}
+
+/// Calls Claude for structured JSON output and returns the raw text, for the caller to
+/// deserialize into its own shape. Shared by dictation cleanup (`claude`, above) and note
+/// structuring (`notes::structure`) so the auth, error-mapping and stop-reason handling live
+/// in one place.
+pub(crate) async fn claude_json(
+    settings: &Settings,
+    system: Vec<serde_json::Value>,
+    user: String,
+    schema: serde_json::Value,
+    max_tokens: u32,
+    key: &str,
+) -> Result<String, String> {
     let model = settings.claude_model.as_str();
-    let mut output_config = json!({ "format": { "type": "json_schema", "schema": output_schema() } });
+    let mut output_config = json!({ "format": { "type": "json_schema", "schema": schema } });
     // Haiku 4.5 doesn't take `effort`. Cleanup is simple, so low effort keeps latency down.
     if !model.starts_with("claude-haiku") {
         output_config["effort"] = json!("low");
     }
     let mut body = json!({
         "model": model,
-        "max_tokens": 16000,
-        "system": [
-            { "type": "text", "text": INSTRUCTIONS },
-            { "type": "text", "text": speaker_section(profile), "cache_control": { "type": "ephemeral" } }
-        ],
-        "messages": [{ "role": "user", "content": format!("<transcript>\n{raw}\n</transcript>") }],
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [{ "role": "user", "content": user }],
         "output_config": output_config,
     });
     let mut req = reqwest::Client::new()
@@ -526,15 +544,15 @@ async fn claude(settings: &Settings, profile: &Profile, raw: &str, key: &str) ->
     }
     match v["stop_reason"].as_str() {
         Some("refusal") => return Err("Claude declined to clean this one up.".into()),
-        Some("max_tokens") => return Err("That dictation was too long for one pass.".into()),
+        Some("max_tokens") => return Err("That was too long for one pass.".into()),
         _ => {}
     }
-    let text = v["content"]
+    v["content"]
         .as_array()
         .and_then(|blocks| blocks.iter().find(|b| b["type"] == "text"))
         .and_then(|b| b["text"].as_str())
-        .ok_or("Claude returned no text.")?;
-    serde_json::from_str(text).map_err(|e| format!("Couldn't read Claude's answer: {e}"))
+        .map(str::to_string)
+        .ok_or_else(|| "Claude returned no text.".into())
 }
 
 /// um, uh, erm and hmm, however long you drag them out.

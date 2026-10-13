@@ -1,7 +1,7 @@
 <script lang="ts">
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { open, save } from "@tauri-apps/plugin-dialog";
-  import { api, type CloudStatus, CLAUDE_MODELS, type Settings } from "../lib/api";
+  import { api, type CloudStatus, CLAUDE_MODELS, type NoteTemplate, type Settings } from "../lib/api";
   import { app, debounce } from "../lib/state.svelte";
   import { handsFreeHint } from "../lib/util";
   import Icon from "../components/Icon.svelte";
@@ -240,6 +240,45 @@
       result += spacing + indent + prefix + " " + items[i] + "\n";
     }
     return result;
+  }
+
+  let editingTemplate: NoteTemplate | null = $state(null);
+  let templateError = $state("");
+
+  function newTemplate() {
+    editingTemplate = { id: "", name: "", description: "", content: "", enabled: true };
+  }
+
+  async function saveTemplateEdit() {
+    if (!editingTemplate || !editingTemplate.name.trim()) return;
+    const saved = await api.saveTemplate($state.snapshot(editingTemplate));
+    const i = snap.templates.findIndex((t) => t.id === saved.id);
+    if (i >= 0) snap.templates[i] = saved;
+    else snap.templates.push(saved);
+    editingTemplate = null;
+  }
+
+  function deleteTemplate(id: string) {
+    const i = snap.templates.findIndex((t) => t.id === id);
+    if (i >= 0) snap.templates.splice(i, 1);
+    api.deleteTemplate(id);
+  }
+
+  function setTemplateEnabled(t: NoteTemplate, value: boolean) {
+    t.enabled = value;
+    api.toggleTemplateEnabled(t.id);
+  }
+
+  async function uploadTemplate() {
+    templateError = "";
+    const path = await open({ multiple: false, directory: false, filters: [{ name: "Markdown", extensions: ["md", "markdown", "txt"] }] });
+    if (typeof path !== "string") return;
+    try {
+      const imported = await api.importTemplate(path);
+      snap.templates.push(imported);
+    } catch (e) {
+      templateError = String(e);
+    }
   }
 </script>
 
@@ -561,6 +600,55 @@
 </section>
 
 <section class="card group">
+  <h2>Note Templates</h2>
+  <p class="sub">
+    These shape how Notes structures a recording - pick one per note, or let Claude detect which fits. Turn any off to
+    keep it out of the picker and auto-pick, or bring your own as a Markdown file.
+  </p>
+
+  {#if templateError}<p class="err">{templateError}</p>{/if}
+
+  <ul class="template-rows">
+    {#each snap.templates as t (t.id)}
+      <li class="template-row" class:off={!t.enabled}>
+        <Toggle bind:checked={() => t.enabled, (v) => setTemplateEnabled(t, v)} label="" />
+        <div class="template-row-text">
+          <span class="template-row-name">{t.name}</span>
+          <span class="muted small">{t.description || "No description yet."}</span>
+        </div>
+        <span class="template-row-acts">
+          <button class="btn ghost sm" onclick={() => (editingTemplate = { ...t })}>Edit</button>
+          <button class="btn ghost sm" onclick={() => deleteTemplate(t.id)}><Icon name="trash" size={13} /></button>
+        </span>
+      </li>
+    {/each}
+  </ul>
+
+  <div class="template-acts">
+    <button class="btn ghost sm" onclick={newTemplate}><Icon name="plus" size={13} />New template</button>
+    <button class="btn ghost sm" onclick={uploadTemplate}><Icon name="upload" size={13} />Upload a .md file</button>
+  </div>
+
+  {#if editingTemplate}
+    <div class="editor">
+      <input class="field" placeholder="Template name, e.g. Design feedback" bind:value={editingTemplate.name} />
+      <input class="field" placeholder="One-line summary shown on the picker card" bind:value={editingTemplate.description} />
+      <textarea class="field" rows="6" placeholder="Describe the mode: what to focus on, how to group chapters…" bind:value={editingTemplate.content}
+      ></textarea>
+      <div class="editor-acts">
+        <button class="btn ghost sm" onclick={() => (editingTemplate = null)}>Cancel</button>
+        <button class="btn primary sm" onclick={saveTemplateEdit} disabled={!editingTemplate.name.trim()}>Save</button>
+      </div>
+    </div>
+  {/if}
+
+  <p class="muted small">
+    Uploading reads a <code>.md</code> file: a leading <code># Title</code> line becomes the name, an optional
+    <code>&gt; blockquote</code> right after it becomes the description, and the rest becomes the instructions.
+  </p>
+</section>
+
+<section class="card group">
   <h2>Settings Management</h2>
   <p class="sub">Export and import your settings for backup or company-wide deployment.</p>
   <div class="lib-actions">
@@ -654,4 +742,16 @@
     margin: 0;
     color: var(--ink-2);
   }
+
+  .template-rows { list-style: none; margin: 10px 0 0; padding: 0; display: grid; }
+  .template-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .template-row :global(.row) { padding: 0; border: 0 !important; }
+  .template-row.off { opacity: 0.55; }
+  .template-row-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+  .template-row-name { font-weight: 560; font-size: 13.5px; }
+  .template-row-acts { display: flex; gap: 2px; flex: none; }
+  .template-acts { display: flex; gap: 8px; margin-top: 12px; }
+  .editor { display: grid; gap: 8px; margin: 12px 0; padding: 12px; border-radius: 10px; background: var(--card-2); }
+  .editor textarea { resize: vertical; font-family: inherit; }
+  .editor-acts { display: flex; justify-content: flex-end; gap: 8px; }
 </style>
