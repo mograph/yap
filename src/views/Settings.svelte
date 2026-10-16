@@ -602,10 +602,10 @@
 </section>
 
 <section class="card group">
-  <h2>Feedback formats</h2>
+  <h2>Notes &amp; feedback</h2>
   <p class="sub">
-    Pick the feedback formats you want Yap to offer when you record a note. Disabled formats stay out of the picker and
-    Claude will not auto-select them.
+    This is the dedicated setup for Notes, separate from dictation. Pick the feedback format cards Yap should offer
+    after a transcription. Disabled cards stay out of the picker and Claude will not auto-select them.
   </p>
 
   {#if templateError}<p class="err">{templateError}</p>{/if}
@@ -615,6 +615,7 @@
     <button class="btn ghost sm" onclick={uploadTemplate}><Icon name="upload" size={13} />Import a template file</button>
   </div>
 
+  <h3 class="formats-title">Feedback format cards</h3>
   <div class="template-cards">
     {#each feedbackTemplates as t (t.id)}
       <article class="template-card" class:off={!t.enabled}>
@@ -768,6 +769,7 @@
   }
 
   .template-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+  .formats-title { margin: 2px 0 -2px; font-size: 14px; font-weight: 650; }
   .template-card { display: grid; gap: 10px; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); }
   .template-card.off { opacity: 0.58; }
   .template-card h3, .template-card h4 { margin: 0; font-size: 14px; font-weight: 650; }
