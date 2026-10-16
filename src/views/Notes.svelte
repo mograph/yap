@@ -1,7 +1,6 @@
 <script lang="ts">
   import { listen } from "@tauri-apps/api/event";
-  import { slide } from "svelte/transition";
-  import { api, FEEDBACK_TEMPLATE_IDS, type Note } from "../lib/api";
+  import { api, type Note } from "../lib/api";
   import { app } from "../lib/state.svelte";
   import NoteCard from "../components/NoteCard.svelte";
   import Icon from "../components/Icon.svelte";
@@ -10,22 +9,13 @@
   let query = $state("");
   let elapsed = $state(0);
   let level = $state(0);
-  let pickerOpen = $state(false);
 
   const phase = $derived(app.noteStatus.phase);
   const recording = $derived(phase === "recording");
   const shown = $derived(
     snap.notes.filter((n) => !query || `${n.title} ${n.summary} ${n.raw}`.toLowerCase().includes(query.toLowerCase())).slice(0, 80),
   );
-  const enabledTemplates = $derived(snap.templates.filter((t) => t.enabled));
-  let selectedTemplate = $state("auto");
-  const AUTO_CARD = { id: "auto", name: "✨ Let Claude pick", description: "Looks at what you said and picks whichever template fits best." };
-  const selectedCard = $derived([AUTO_CARD, ...enabledTemplates].find((t) => t.id === selectedTemplate) ?? AUTO_CARD);
-
-  function pick(id: string) {
-    selectedTemplate = id;
-    pickerOpen = false;
-  }
+  const claudeEnabled = $derived(snap.settings.brain === "claude");
 
   let justCreatedId = $state("");
 
@@ -73,42 +63,19 @@
 <header class="hero">
   <div class="copy">
     <h1>Notes</h1>
-    <p>Start a recording and talk through a meeting, a feedback session, or anything else that runs longer than a quick dictation. Yap structures it into a note when you stop.</p>
-    {#if phase === "idle" || phase === "error"}
-      <div class="mode-row">
-        <button class="mode-trigger" class:open={pickerOpen} onclick={() => (pickerOpen = !pickerOpen)} aria-expanded={pickerOpen}>
-          <span class="mode-name">{selectedCard.name}</span>
-          <span class="chev" class:up={pickerOpen}><Icon name="chevron" size={14} /></span>
-        </button>
-        <button class="btn ghost sm" onclick={() => (app.view = "settings")}>
-          <Icon name="sliders" size={13} />Manage
-        </button>
-      </div>
-      {#if pickerOpen}
-        <div class="mode-cards" transition:slide={{ duration: 180 }}>
-          <button class="mode-card" class:selected={selectedTemplate === "auto"} onclick={() => pick("auto")}>
-            <span class="mode-card-name">{AUTO_CARD.name}</span>
-            <span class="mode-card-desc">{AUTO_CARD.description}</span>
-          </button>
-          {#each enabledTemplates as t (t.id)}
-            <button class="mode-card" class:selected={selectedTemplate === t.id} onclick={() => pick(t.id)}>
-              <span class="mode-card-name">{t.name}</span>
-              <span class="mode-card-desc">{t.description || "No description yet."}</span>
-            </button>
-          {/each}
-        </div>
-      {/if}
-    {/if}
+    <p>
+      Record first, then choose the best format card for this transcription. {#if claudeEnabled}Yap only uses Claude after you choose a format.{:else}The transcription stays on this device until you choose Claude in Settings.{/if}
+    </p>
   </div>
   <div class="record-wrap">
     {#if phase === "idle" || phase === "error"}
-      <button class="record" onclick={() => api.startNote(selectedTemplate)} aria-label="Start a note">
+      <button class="record" onclick={() => api.startNote("raw")} aria-label="Start a note">
         <span class="dot"></span>
       </button>
       <span class="record-hint">{phase === "error" ? app.noteStatus.message : "Start a note"}</span>
     {:else if phase === "recording"}
       <div class="recording-row">
-        <button class="record live" onclick={() => api.stopNote()} aria-label="Stop and structure">
+        <button class="record live" onclick={() => api.stopNote()} aria-label="Stop and save transcription">
           <Icon name="check" size={20} stroke={2.4} />
         </button>
         <button class="cancel-btn" onclick={() => api.cancelNote()} aria-label="Discard"><Icon name="x" size={16} /></button>
@@ -119,7 +86,7 @@
       </span>
     {:else}
       <button class="record busy" disabled aria-label="Structuring"></button>
-      <span class="record-hint">{app.noteStatus.message || "Structuring your note…"}</span>
+      <span class="record-hint">{app.noteStatus.message || "Saving your transcription…"}</span>
     {/if}
   </div>
 </header>
@@ -138,10 +105,10 @@
       {#each shown as n (n.id)}
         <NoteCard
           item={n}
-          templates={enabledTemplates}
+          templates={snap.templates.filter((t) => t.enabled)}
           {ondelete}
           startOpen={n.id === justCreatedId}
-          startPickerOpen={n.id === justCreatedId && FEEDBACK_TEMPLATE_IDS.has(n.templateId)}
+          startPickerOpen={n.id === justCreatedId && !n.templateId}
         />
       {/each}
     </div>
@@ -150,52 +117,13 @@
   {:else}
     <div class="empty card">
       <h3>No notes yet</h3>
-      <p class="muted">Start one above. Unlike push-to-talk dictation, a note keeps recording until you stop it - talk as long as you need, Yap structures it into a title, summary, chapters, decisions and action items when you're done.</p>
+      <p class="muted">Start one above. Unlike push-to-talk dictation, a note keeps recording until you stop it. When you finish, choose the format card that best fits what you said.</p>
     </div>
   {/if}
 </section>
 
 <style>
   .hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 30px; margin-bottom: 26px; }
-  .mode-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-  .mode-trigger {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    height: 32px;
-    padding: 0 10px;
-    border-radius: 9px;
-    border: 1px solid var(--line-2);
-    background: var(--card);
-    font-size: 13px;
-    font-weight: 560;
-    max-width: 260px;
-  }
-  .mode-trigger:hover, .mode-trigger.open { border-color: var(--accent); }
-  .mode-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chev { display: inline-flex; color: var(--ink-3); transition: transform 0.2s; }
-  .chev.up { transform: rotate(180deg); }
-  .mode-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 8px;
-    margin-top: 10px;
-    max-width: 640px;
-  }
-  .mode-card {
-    text-align: left;
-    display: grid;
-    gap: 3px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--line-2);
-    background: var(--card);
-  }
-  .mode-card:hover { border-color: var(--accent); }
-  .mode-card.selected { border-color: var(--accent); background: var(--accent-soft); }
-  .mode-card-name { font-size: 13px; font-weight: 650; }
-  .mode-card-desc { font-size: 11.5px; color: var(--ink-3); line-height: 1.4; }
-
   .copy h1 { font-size: 36px; font-weight: 750; letter-spacing: -0.03em; }
   .copy p { margin-top: 8px; font-size: 15.5px; color: var(--ink-2); max-width: 46ch; line-height: 1.7; }
 

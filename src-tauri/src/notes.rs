@@ -16,6 +16,9 @@ use std::time::Instant;
 /// The sentinel `template_id` meaning "work out which template fits, from the transcript
 /// itself" rather than a specific one the user picked up front.
 pub const AUTO: &str = "auto";
+/// A freshly recorded note is deliberately left as a local transcription until the
+/// person chooses one of the formatting cards in the UI.
+pub const RAW: &str = "raw";
 
 const NOTE_SYSTEM: &str = "\
 You are Yap's note-structuring engine. Given a raw speech transcript from a continuous \
@@ -105,6 +108,23 @@ pub struct Note {
     pub template_id: String,
 }
 
+/// Saves a recording as-is before any remote formatting. This is the first step of the
+/// Notes flow: the person gets to read the transcription and choose the right format
+/// card before Yap sends anything to an optional AI provider.
+pub fn transcription(raw: &str) -> Note {
+    Note {
+        title: fallback_title(raw),
+        summary: raw.to_string(),
+        chapters: vec![Chapter { title: "Transcript".into(), body: raw.to_string() }],
+        decisions: Vec::new(),
+        action_items: Vec::new(),
+        structure_ms: 0,
+        engine: "local transcription".into(),
+        note: "Choose a format card to structure this transcription.".into(),
+        template_id: String::new(),
+    }
+}
+
 /// Picks whichever template best fits the transcript, for when the user asked Yap to
 /// decide rather than picking one up front. A small, cheap classification call (~100
 /// tokens): the schema constrains the answer to one of the real template ids, so the
@@ -114,7 +134,9 @@ pub struct Note {
 /// never a reason to block structuring the note.
 pub async fn classify(settings: &Settings, raw: &str, templates: &[NoteTemplate]) -> String {
     let fallback = || templates.first().map(|t| t.id.clone()).unwrap_or_default();
-    if templates.len() <= 1 {
+    // A saved Anthropic key is not consent to send every recording to Claude: Notes
+    // honors the same Local rules privacy setting as ordinary dictation.
+    if settings.brain != "claude" || templates.len() <= 1 {
         return fallback();
     }
     let Some(key) = api_key(settings) else { return fallback() };
@@ -162,6 +184,9 @@ pub async fn structure(settings: &Settings, raw: &str, template_id: &str, templa
         template_id: template_id.to_string(),
     };
 
+    if settings.brain != "claude" {
+        return fallback("Local rules is selected, so this note stayed on this device. Turn on Claude in Settings to have it structured.".into());
+    }
     let Some(key) = api_key(settings) else {
         return fallback("No Claude API key yet, so this note wasn't structured. Add one in Settings.".into());
     };
@@ -218,7 +243,7 @@ mod tests {
 
     #[test]
     fn no_api_key_falls_back_to_the_raw_transcript_without_losing_it() {
-        let settings = Settings::default();
+        let settings = Settings { brain: "claude".into(), ..Default::default() };
         let note = tauri::async_runtime::block_on(structure(
             &settings,
             "we decided to ship Friday and Sam will write the changelog",
@@ -239,5 +264,24 @@ mod tests {
         assert_eq!(fallback_title("we decided to ship on friday and sam will write the changelog this week"), "We decided to ship on friday and sam…");
         assert_eq!(fallback_title("short note"), "Short note");
         assert_eq!(fallback_title(""), "Untitled note");
+    }
+
+    #[test]
+    fn local_brain_never_calls_claude_for_notes() {
+        let settings = Settings { brain: "local".into(), anthropic_key: "a-real-looking-key-is-still-ignored".into(), ..Default::default() };
+        let note = tauri::async_runtime::block_on(structure(&settings, "review the settings card", "code-review", ""));
+        assert_eq!(note.engine, "raw transcript");
+        assert!(note.note.contains("stayed on this device"));
+    }
+
+    #[test]
+    fn local_brain_does_not_auto_classify_with_claude() {
+        let settings = Settings { brain: "local".into(), anthropic_key: "a-real-looking-key-is-still-ignored".into(), ..Default::default() };
+        let templates = vec![
+            NoteTemplate { id: "default".into(), ..Default::default() },
+            NoteTemplate { id: "code-review".into(), ..Default::default() },
+        ];
+        let picked = tauri::async_runtime::block_on(classify(&settings, "review this implementation", &templates));
+        assert_eq!(picked, "default");
     }
 }

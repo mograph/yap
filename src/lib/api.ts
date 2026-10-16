@@ -146,7 +146,18 @@ export interface NoteTemplate {
 export const FEEDBACK_TEMPLATE_IDS = new Set([
   "ux-feedback",
   "design-tasks-claude-code",
+  "design-tasks-gpt",
   "visual-bug-report",
+  "code-review",
+  "visual-qa",
+  "visual-styling",
+  "responsive-layout",
+  "motion-polish",
+  "brand-expression",
+  "design-system-audit",
+  "interaction-flow",
+  "accessibility-review",
+  "content-copy-feedback",
   "like-wish-what-if",
   "user-research-synthesis",
 ]);

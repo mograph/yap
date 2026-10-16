@@ -30,7 +30,7 @@
   let copied = $state(false);
   let regenerating = $state(false);
   // svelte-ignore state_referenced_locally
-  let regenTemplate = $state(item.templateId || "auto");
+  let regenTemplate = $state(item.templateId || "default");
 
   const doneCount = $derived(item.actionItems.filter((a) => a.done).length);
   const minutes = $derived(Math.max(1, Math.round(item.audioSecs / 60)));
@@ -143,7 +143,7 @@
         <span class="foot-acts">
           {#if templates.length}
             <button class="btn ghost sm" onclick={() => (pickerOpen = !pickerOpen)} disabled={regenerating}>
-              <Icon name="refresh" size={13} />{regenerating ? "Restructuring…" : "Try a different format"}
+              <Icon name="refresh" size={13} />{regenerating ? "Formatting…" : item.templateId ? "Try a different format" : "Choose a format"}
             </button>
           {/if}
           {#if ondelete}<button class="btn ghost sm" onclick={() => ondelete(item.id)}><Icon name="trash" size={13} />Delete</button>{/if}
@@ -152,10 +152,6 @@
 
       {#if pickerOpen}
         <div class="mode-cards" transition:slide={{ duration: 180 }}>
-          <button class="mode-card" class:selected={regenTemplate === "auto"} onclick={() => regenerate("auto")}>
-            <span class="mode-card-name">✨ Let Claude pick</span>
-            <span class="mode-card-desc">Looks at the transcript and picks whichever format fits best.</span>
-          </button>
           {#each templates as t (t.id)}
             <button class="mode-card" class:selected={regenTemplate === t.id} onclick={() => regenerate(t.id)}>
               <span class="mode-card-name">{t.name}</span>

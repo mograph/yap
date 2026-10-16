@@ -1,7 +1,7 @@
 <script lang="ts">
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { open, save } from "@tauri-apps/plugin-dialog";
-  import { api, type CloudStatus, CLAUDE_MODELS, type NoteTemplate, type Settings } from "../lib/api";
+  import { api, FEEDBACK_TEMPLATE_IDS, type CloudStatus, CLAUDE_MODELS, type NoteTemplate, type Settings } from "../lib/api";
   import { app, debounce } from "../lib/state.svelte";
   import { handsFreeHint } from "../lib/util";
   import Icon from "../components/Icon.svelte";
@@ -244,6 +244,8 @@
 
   let editingTemplate: NoteTemplate | null = $state(null);
   let templateError = $state("");
+  const feedbackTemplates = $derived(snap.templates.filter((t) => FEEDBACK_TEMPLATE_IDS.has(t.id)));
+  const otherTemplates = $derived(snap.templates.filter((t) => !FEEDBACK_TEMPLATE_IDS.has(t.id)));
 
   function newTemplate() {
     editingTemplate = { id: "", name: "", description: "", content: "", enabled: true };
@@ -373,7 +375,7 @@
   <div class="group-head">
     <div>
       <h2>Brain</h2>
-      <p class="sub">What cleans up your words using your voice profile.</p>
+      <p class="sub">What cleans up your words and structures Notes. With Claude selected and a saved key, Notes uses the format card you choose; Local rules keeps transcripts on this device.</p>
     </div>
     <Segmented
       label="Cleanup engine"
@@ -402,7 +404,7 @@
       {/each}
     </div>
   {:else}
-    <p class="muted small">Removes um/uh, capitalizes, adds a period, and applies your dictionary. No internet needed, no personality either.</p>
+    <p class="muted small">Removes um/uh, capitalizes, adds a period, and applies your dictionary. Notes stay on this device too; no Claude request is made.</p>
   {/if}
 </section>
 
@@ -600,34 +602,56 @@
 </section>
 
 <section class="card group">
-  <h2>Note Templates</h2>
+  <h2>Feedback formats</h2>
   <p class="sub">
-    These shape how Notes structures a recording - pick one per note, or let Claude detect which fits. Turn any off to
-    keep it out of the picker and auto-pick, or bring your own as a Markdown file.
+    Pick the feedback formats you want Yap to offer when you record a note. Disabled formats stay out of the picker and
+    Claude will not auto-select them.
   </p>
 
   {#if templateError}<p class="err">{templateError}</p>{/if}
 
-  <ul class="template-rows">
-    {#each snap.templates as t (t.id)}
-      <li class="template-row" class:off={!t.enabled}>
-        <Toggle bind:checked={() => t.enabled, (v) => setTemplateEnabled(t, v)} label="" />
-        <div class="template-row-text">
-          <span class="template-row-name">{t.name}</span>
-          <span class="muted small">{t.description || "No description yet."}</span>
-        </div>
-        <span class="template-row-acts">
-          <button class="btn ghost sm" onclick={() => (editingTemplate = { ...t })}>Edit</button>
-          <button class="btn ghost sm" onclick={() => deleteTemplate(t.id)}><Icon name="trash" size={13} /></button>
-        </span>
-      </li>
-    {/each}
-  </ul>
-
-  <div class="template-acts">
-    <button class="btn ghost sm" onclick={newTemplate}><Icon name="plus" size={13} />New template</button>
-    <button class="btn ghost sm" onclick={uploadTemplate}><Icon name="upload" size={13} />Upload a .md file</button>
+  <div class="template-acts top">
+    <button class="btn primary sm" onclick={newTemplate}><Icon name="plus" size={13} />Add a template</button>
+    <button class="btn ghost sm" onclick={uploadTemplate}><Icon name="upload" size={13} />Import a template file</button>
   </div>
+
+  <div class="template-cards">
+    {#each feedbackTemplates as t (t.id)}
+      <article class="template-card" class:off={!t.enabled}>
+        <div>
+          <h3>{t.name}</h3>
+          <p class="muted small">{t.description || "No description yet."}</p>
+        </div>
+        <Toggle bind:checked={() => t.enabled, (v) => setTemplateEnabled(t, v)} label={t.enabled ? "Enabled" : "Disabled"} />
+        <div class="template-card-acts">
+          <button class="btn ghost sm" onclick={() => (editingTemplate = { ...t })}>Edit format</button>
+          <button class="btn ghost sm" onclick={() => deleteTemplate(t.id)} aria-label={`Delete ${t.name}`}><Icon name="trash" size={13} /></button>
+        </div>
+      </article>
+    {/each}
+  </div>
+
+  {#if otherTemplates.length}
+    <div class="other-formats">
+      <h3>Other note formats</h3>
+      <p class="muted small">Use these for general notes, meetings, retros, and your own custom templates.</p>
+      <div class="template-cards compact">
+        {#each otherTemplates as t (t.id)}
+          <article class="template-card" class:off={!t.enabled}>
+            <div>
+              <h4>{t.name}</h4>
+              <p class="muted small">{t.description || "No description yet."}</p>
+            </div>
+            <Toggle bind:checked={() => t.enabled, (v) => setTemplateEnabled(t, v)} label={t.enabled ? "Enabled" : "Disabled"} />
+            <div class="template-card-acts">
+              <button class="btn ghost sm" onclick={() => (editingTemplate = { ...t })}>Edit format</button>
+              <button class="btn ghost sm" onclick={() => deleteTemplate(t.id)} aria-label={`Delete ${t.name}`}><Icon name="trash" size={13} /></button>
+            </div>
+          </article>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   {#if editingTemplate}
     <div class="editor">
@@ -643,7 +667,7 @@
   {/if}
 
   <p class="muted small">
-    Uploading reads a <code>.md</code> file: a leading <code># Title</code> line becomes the name, an optional
+    Importing reads a <code>.md</code> file: a leading <code># Title</code> line becomes the name, an optional
     <code>&gt; blockquote</code> right after it becomes the description, and the rest becomes the instructions.
   </p>
 </section>
@@ -743,14 +767,19 @@
     color: var(--ink-2);
   }
 
-  .template-rows { list-style: none; margin: 10px 0 0; padding: 0; display: grid; }
-  .template-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-top: 1px solid var(--line); }
-  .template-row :global(.row) { padding: 0; border: 0 !important; }
-  .template-row.off { opacity: 0.55; }
-  .template-row-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
-  .template-row-name { font-weight: 560; font-size: 13.5px; }
-  .template-row-acts { display: flex; gap: 2px; flex: none; }
-  .template-acts { display: flex; gap: 8px; margin-top: 12px; }
+  .template-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+  .template-card { display: grid; gap: 10px; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); }
+  .template-card.off { opacity: 0.58; }
+  .template-card h3, .template-card h4 { margin: 0; font-size: 14px; font-weight: 650; }
+  .template-card p { margin: 4px 0 0; line-height: 1.45; }
+  .template-card :global(.row) { padding: 8px 0 0; border-top: 1px solid var(--line); }
+  .template-card-acts { display: flex; gap: 4px; justify-content: flex-end; }
+  .other-formats { display: grid; gap: 9px; padding-top: 2px; }
+  .other-formats > h3 { margin: 0; font-size: 14px; font-weight: 650; }
+  .other-formats > p { margin: -5px 0 0; }
+  .template-cards.compact .template-card { padding: 13px; }
+  .template-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .template-acts.top { margin-top: 2px; }
   .editor { display: grid; gap: 8px; margin: 12px 0; padding: 12px; border-radius: 10px; background: var(--card-2); }
   .editor textarea { resize: vertical; font-family: inherit; }
   .editor-acts { display: flex; justify-content: flex-end; gap: 8px; }

@@ -126,7 +126,9 @@ impl Default for Settings {
             cloud_stt_url: "https://api.groq.com/openai/v1/audio/transcriptions".into(),
             cloud_stt_model: "whisper-large-v3-turbo".into(),
             cloud_stt_key: String::new(),
-            brain: "claude".into(),
+            // Keep new installs private by default. Claude remains an opt-in choice in
+            // Settings for people who want richer cleanup and note structuring.
+            brain: "local".into(),
             claude_model: "claude-opus-5".into(),
             anthropic_key: String::new(),
             auto_paste: true,

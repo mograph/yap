@@ -599,23 +599,27 @@ async fn notes_pipeline(app: &AppHandle) -> Result<Option<store::Note>, String> 
     }
     eprintln!("yap: transcribed {audio_secs:.2}s of audio in {stt_ms}ms, {} characters", raw.chars().count());
 
-    emit_note_status(app, "structuring", "Structuring your note…");
+    emit_note_status(app, "structuring", "Saving your transcription…");
     let chosen = st.active_template.lock().unwrap().clone();
-    let template_id = if chosen == notes::AUTO {
-        let templates: Vec<_> = st.templates.lock().unwrap().iter().filter(|t| t.enabled).cloned().collect();
-        notes::classify(&settings, &raw, &templates).await
+    let structured = if chosen == notes::RAW {
+        notes::transcription(&raw)
     } else {
-        chosen
+        let template_id = if chosen == notes::AUTO {
+            let templates: Vec<_> = st.templates.lock().unwrap().iter().filter(|t| t.enabled).cloned().collect();
+            notes::classify(&settings, &raw, &templates).await
+        } else {
+            chosen
+        };
+        let template_md = st
+            .templates
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|t| t.id == template_id)
+            .map(|t| t.content.clone())
+            .unwrap_or_default();
+        notes::structure(&settings, &raw, &template_id, &template_md).await
     };
-    let template_md = st
-        .templates
-        .lock()
-        .unwrap()
-        .iter()
-        .find(|t| t.id == template_id)
-        .map(|t| t.content.clone())
-        .unwrap_or_default();
-    let structured = notes::structure(&settings, &raw, &template_id, &template_md).await;
 
     let note = store::Note {
         id: uuid::Uuid::new_v4().to_string(),
@@ -1323,6 +1327,17 @@ firm calls the speaker made (\"we're going with the card layout\"), not things t
 still deciding between. Do not soften or generalize specific critiques into vague ones - \
 precision is more useful than politeness here."),
 
+        ("design-tasks-gpt", "Design tasks for GPT", "Turns product feedback into self-contained tasks for GPT or Codex: context, exact change, constraints, and a check for done.", "\
+This recording is feedback that will be handed to a GPT-based coding agent such as GPT \
+or Codex. Turn it into independently actionable engineering tasks. Group related work by \
+component, screen, file area, or user flow when the speaker named one. Every action item \
+must contain: the relevant context or location, the exact change, any constraint that \
+must be preserved, and a concrete acceptance check. Keep exact names, file paths, \
+measurements, examples, and references to other products when they were spoken - they are \
+useful context for an agent. Separate observations from instructions, and never invent an \
+implementation detail the speaker did not provide. Decisions are firm choices that should \
+guide the implementation; unresolved alternatives remain open questions rather than tasks."),
+
         ("visual-bug-report", "Visual bug report", "Walking through specific bugs you noticed - one per chapter, what you saw vs. what you expected.", "\
 The speaker is walking through specific visual or interaction bugs they noticed, not \
 general feedback. Structure each like a bug report: one chapter per distinct bug, titled \
@@ -1333,6 +1348,94 @@ restate each bug as a fix to make, in the same place-specific terms. Don't merge
 different bugs into one chapter even if they're in the same area - keep them separable \
 so each can be tracked independently. Decisions stay empty unless the speaker explicitly \
 chose between two ways to fix something."),
+
+        ("code-review", "Code review", "Implementation feedback for code changes - groups by file or component, with a concrete fix and a way to verify it.", "\
+This is a code or implementation review. Group findings by file, component, service, or \
+behavioral concern - not by the order they were said. Each chapter distinguishes the \
+specific code or behavior being reviewed, the risk or problem, and the requested change. \
+Action items must be ready to implement: name the relevant area, the change, and how to \
+verify it (test case, expected behavior, or failure that should disappear). Preserve any \
+file paths, APIs, edge cases, or trade-offs the speaker mentions. Do not turn a tentative \
+question into a defect; keep uncertainty visible. Decisions are only choices the speaker \
+explicitly made about an approach, architecture, or scope."),
+
+        ("visual-qa", "Visual QA", "Pixel-level UI feedback - captures the screen, element, mismatch, expected result, and viewport or state when mentioned.", "\
+This is a visual quality-assurance pass. Create one chapter per visibly distinct issue, \
+titled with the screen and element (for example, \"Settings > feedback cards\"). State \
+what is currently visible, what it should look like, and the condition where it appears: \
+viewport, platform, theme, state, or interaction if the speaker gave one. Keep concrete \
+details such as spacing, alignment, color, typography, clipping, hierarchy, and before/ \
+after comparisons. Each action item is a separately verifiable visual fix; do not merge \
+unrelated polish issues into one vague \"clean up the UI\" task."),
+
+        ("visual-styling", "Visual styling", "Polish feedback for typography, color, spacing, hierarchy, shape, and surface treatment.", "\
+This is a visual-styling critique. Group feedback by visual system or screen area and \
+retain the concrete comparison the speaker made: type size or weight, color, contrast, \
+spacing, alignment, radius, border, shadow, imagery, density, or hierarchy. Separate a \
+specific observed mismatch from the intended visual direction. Action items must name the \
+element and the visual adjustment, with enough detail to review the result in a screenshot \
+or live UI. Keep references to brands, products, or existing screens as design context; \
+do not turn a subjective preference into a token value unless the speaker provided one."),
+
+        ("responsive-layout", "Layout & responsive", "Feedback on page structure, breakpoints, resizing, overflow, and how layouts adapt across devices.", "\
+This is layout and responsive-design feedback. Group by page, component, or breakpoint. \
+For each issue, capture the viewport or device if named, the current layout behavior, the \
+desired arrangement, and any overflow, wrapping, clipping, scroll, or priority problem. \
+Action items should state a verifiable layout rule rather than a vague request to make it \
+responsive - for example which content stacks, reflows, hides, or stays visible first. \
+Keep desktop and mobile requirements distinct when the speaker described both."),
+
+        ("motion-polish", "Motion & interaction polish", "Feedback on transitions, hover and press states, perceived speed, feedback, and motion that should be reduced or removed.", "\
+This is motion and microinteraction feedback. Group by the interaction or state change, \
+such as opening a panel, saving, loading, hovering, dragging, or completing an action. \
+Describe the trigger, the current feedback, the intended feeling or clarity, and any \
+timing, easing, interruption, or reduced-motion concern the speaker mentioned. Each action \
+item should be a behavior that can be observed and tested, not merely an instruction to \
+make an animation nicer. Include non-motion feedback like focus, sound, or confirmation \
+when it is part of the same interaction."),
+
+        ("brand-expression", "Brand & visual direction", "Feedback on the product's personality, art direction, tone, and whether the interface feels on-brand.", "\
+This is feedback about brand expression and visual direction. Group observations by the \
+qualities the interface should communicate - for example confident, playful, premium, \
+technical, calm, or editorial - and tie them to concrete surfaces such as typography, \
+palette, imagery, iconography, voice, or density. Preserve the speaker's references and \
+comparisons. Action items should connect a visual change to the intended brand signal, so \
+they can guide design choices without becoming a pile of disconnected cosmetic tweaks."),
+
+        ("design-system-audit", "Design system audit", "Consistency feedback across components, tokens, states, and reusable patterns - calls out what should be standardized.", "\
+This is feedback about a design system rather than a single screen. Group the note by \
+pattern or token: type scale, spacing, color, radius, elevation, controls, empty states, \
+or responsive behavior. For each, distinguish the existing inconsistency from the shared \
+rule it should follow, and name every component or surface the speaker mentioned. Action \
+items should favor reusable tokens, primitives, or documented rules over one-off patches. \
+Keep exceptions when the speaker says a component intentionally differs. Decisions record \
+the agreed system rule, not every observation."),
+
+        ("interaction-flow", "Interaction & flow", "Feedback on how the product behaves - records the trigger, current experience, expected outcome, and important states.", "\
+This is feedback on interaction design, workflow, or a user journey. Group chapters by \
+flow or moment (for example, \"Starting a note\" or \"Saving settings\"), not by visual \
+area alone. Describe the trigger, what happens now, what the person expects to happen, \
+and any loading, error, empty, success, keyboard, or cancellation state they mention. \
+Action items must state the behavioral change and a clear acceptance check. Keep visual \
+observations only when they affect comprehension or the next action."),
+
+        ("accessibility-review", "Accessibility review", "Accessibility feedback for keyboard use, focus, screen readers, contrast, motion, and understandable controls.", "\
+This is an accessibility review. Group issues by task or component and identify the \
+affected user need when it is clear: keyboard navigation, focus visibility and order, \
+screen-reader name or state, semantic structure, contrast, text scaling, motion, or \
+error recovery. State the observed barrier and the expected accessible behavior without \
+inventing a standard the speaker did not name. Every action item should be testable with \
+the relevant assistive technology or interaction method. Preserve any platform-specific \
+details, such as VoiceOver, Windows High Contrast, or reduced motion."),
+
+        ("content-copy-feedback", "Content & UX copy", "Feedback on labels, instructions, tone, and information hierarchy - keeps the audience and desired wording explicit.", "\
+This is feedback on product copy or content design. Group by screen, message, or user \
+decision point. Capture the current wording or meaning, who it is for, what is confusing \
+or missing, and the desired outcome: clearer action, better expectation-setting, a more \
+appropriate tone, or less cognitive load. Include proposed wording only when the speaker \
+actually supplied it; otherwise describe the intent rather than inventing copy. Action \
+items should name the UI surface and the communication goal so a writer or implementer \
+can verify the revision in context."),
 
         ("like-wish-what-if", "I Like, I Wish, What If", "Stanford's design critique framework: 1) what's working, 2) problems framed as wishes, 3) ideas framed as experiments.", "\
 Design feedback using Stanford d.school's \"I Like, I Wish, What If\" critique \
