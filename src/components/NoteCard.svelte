@@ -15,9 +15,8 @@
     templates: NoteTemplate[];
     ondelete?: (id: string) => void;
     startOpen?: boolean;
-    /** Auto-expand the template picker on mount - used right after a note is created when
-     *  Claude's auto-pick detected it as a feedback-style recording, so the cards for
-     *  picking exactly which feedback format fits are immediately visible. */
+    /** Auto-expand the format picker for an unformatted transcription, so its cards are
+     *  immediately visible even if the note-created event arrived before this view mounted. */
     startPickerOpen?: boolean;
   } = $props();
 
@@ -123,6 +122,30 @@
 
   {#if open}
     <div class="detail" transition:slide={{ duration: 220 }}>
+      {#if pickerOpen}
+        <section class="format-picker" aria-label="Choose feedback format">
+          <div>
+            <span class="eyebrow">Format this transcription</span>
+            <p>Choose a card before reading the full transcript. You can change it later.</p>
+          </div>
+          <div class="mode-cards">
+            <p class="format-prompt">Choose a feedback format</p>
+            {#each shownTemplates as t (t.id)}
+              <button class="mode-card" class:selected={regenTemplate === t.id} onclick={() => regenerate(t.id)}>
+                <span class="mode-card-name">{t.name}</span>
+                <span class="mode-card-desc">{t.description || "No description yet."}</span>
+                <span class="mode-card-action">Use this format</span>
+              </button>
+            {/each}
+            {#if featuredTemplates.length && otherTemplates.length && !showAllFormats}
+              <button class="more-formats" onclick={() => (showAllFormats = true)}>Show {otherTemplates.length} more formats</button>
+            {:else if featuredTemplates.length && otherTemplates.length}
+              <button class="more-formats" onclick={() => (showAllFormats = false)}>Show fewer formats</button>
+            {/if}
+          </div>
+        </section>
+      {/if}
+
       {#each item.chapters as c, i (i)}
         <div class="block">
           <span class="eyebrow">{c.title}</span>
@@ -177,23 +200,6 @@
         </span>
       </div>
 
-      {#if pickerOpen}
-        <div class="mode-cards" transition:slide={{ duration: 180 }}>
-          <p class="format-prompt">Choose a feedback format</p>
-          {#each shownTemplates as t (t.id)}
-            <button class="mode-card" class:selected={regenTemplate === t.id} onclick={() => regenerate(t.id)}>
-              <span class="mode-card-name">{t.name}</span>
-              <span class="mode-card-desc">{t.description || "No description yet."}</span>
-              <span class="mode-card-action">Use this format</span>
-            </button>
-          {/each}
-          {#if featuredTemplates.length && otherTemplates.length && !showAllFormats}
-            <button class="more-formats" onclick={() => (showAllFormats = true)}>Show {otherTemplates.length} more formats</button>
-          {:else if featuredTemplates.length && otherTemplates.length}
-            <button class="more-formats" onclick={() => (showAllFormats = false)}>Show fewer formats</button>
-          {/if}
-        </div>
-      {/if}
     </div>
   {/if}
 </article>
@@ -232,6 +238,8 @@
   .note-flag.detect { color: var(--accent-2); background: var(--accent-soft); margin-top: 0; }
 
   .detail { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); display: grid; gap: 18px; }
+  .format-picker { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-soft); }
+  .format-picker p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
   .block { display: grid; gap: 6px; }
   .eyebrow { font-size: 12px; font-weight: 650; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.02em; }
   .body { margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
@@ -263,7 +271,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 8px;
-    margin-top: 10px;
+    margin-top: 0;
   }
   .format-prompt { grid-column: 1 / -1; margin: 0 0 1px; font-size: 12px; font-weight: 650; color: var(--ink-2); }
   .mode-card {

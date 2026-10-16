@@ -107,8 +107,8 @@
           item={n}
           templates={snap.templates.filter((t) => t.enabled)}
           {ondelete}
-          startOpen={n.id === justCreatedId}
-          startPickerOpen={n.id === justCreatedId && !n.templateId}
+          startOpen={n.id === justCreatedId || !n.templateId}
+          startPickerOpen={!n.templateId}
         />
       {/each}
     </div>
