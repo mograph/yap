@@ -29,11 +29,27 @@
   let detected = $state(startPickerOpen);
   let copied = $state(false);
   let regenerating = $state(false);
+  let showAllFormats = $state(false);
   // svelte-ignore state_referenced_locally
   let regenTemplate = $state(item.templateId || "default");
 
   const doneCount = $derived(item.actionItems.filter((a) => a.done).length);
   const minutes = $derived(Math.max(1, Math.round(item.audioSecs / 60)));
+  // Lead with a small, useful set after a transcription. The complete library remains one
+  // click away so common feedback does not get buried in a long wall of templates.
+  const featuredTemplateIds = new Set([
+    "design-tasks-gpt",
+    "ux-feedback",
+    "code-review",
+    "visual-qa",
+    "visual-styling",
+    "design-system-audit",
+  ]);
+  const featuredTemplates = $derived(templates.filter((template) => featuredTemplateIds.has(template.id)));
+  const otherTemplates = $derived(templates.filter((template) => !featuredTemplateIds.has(template.id)));
+  // A custom-only library should still be usable if someone turns every built-in card off.
+  const initialTemplates = $derived(featuredTemplates.length ? featuredTemplates : templates);
+  const shownTemplates = $derived(showAllFormats ? templates : initialTemplates);
 
   async function regenerate(templateId: string) {
     if (regenerating) return;
@@ -163,13 +179,19 @@
 
       {#if pickerOpen}
         <div class="mode-cards" transition:slide={{ duration: 180 }}>
-          {#each templates as t (t.id)}
+          <p class="format-prompt">Choose a feedback format</p>
+          {#each shownTemplates as t (t.id)}
             <button class="mode-card" class:selected={regenTemplate === t.id} onclick={() => regenerate(t.id)}>
               <span class="mode-card-name">{t.name}</span>
               <span class="mode-card-desc">{t.description || "No description yet."}</span>
               <span class="mode-card-action">Use this format</span>
             </button>
           {/each}
+          {#if featuredTemplates.length && otherTemplates.length && !showAllFormats}
+            <button class="more-formats" onclick={() => (showAllFormats = true)}>Show {otherTemplates.length} more formats</button>
+          {:else if featuredTemplates.length && otherTemplates.length}
+            <button class="more-formats" onclick={() => (showAllFormats = false)}>Show fewer formats</button>
+          {/if}
         </div>
       {/if}
     </div>
@@ -243,6 +265,7 @@
     gap: 8px;
     margin-top: 10px;
   }
+  .format-prompt { grid-column: 1 / -1; margin: 0 0 1px; font-size: 12px; font-weight: 650; color: var(--ink-2); }
   .mode-card {
     text-align: left;
     display: grid;
@@ -268,4 +291,6 @@
     color: var(--accent-2);
   }
   .mode-card:hover .mode-card-action, .mode-card.selected .mode-card-action { border-color: var(--accent); background: var(--accent-soft); }
+  .more-formats { grid-column: 1 / -1; justify-self: start; border: 0; padding: 4px 1px; background: transparent; color: var(--accent-2); font-size: 12px; font-weight: 650; }
+  .more-formats:hover { text-decoration: underline; }
 </style>
