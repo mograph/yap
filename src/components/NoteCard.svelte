@@ -256,5 +256,16 @@
   .mode-card.selected { border-color: var(--accent); background: var(--accent-soft); }
   .mode-card-name { font-size: 13px; font-weight: 650; }
   .mode-card-desc { font-size: 11.5px; color: var(--ink-3); line-height: 1.4; }
-  .mode-card-action { margin-top: 4px; font-size: 11.5px; font-weight: 650; color: var(--accent-2); }
+  .mode-card-action {
+    justify-self: start;
+    margin-top: 5px;
+    padding: 5px 8px;
+    border: 1px solid var(--line-2);
+    border-radius: 7px;
+    background: var(--card-2);
+    font-size: 11.5px;
+    font-weight: 650;
+    color: var(--accent-2);
+  }
+  .mode-card:hover .mode-card-action, .mode-card.selected .mode-card-action { border-color: var(--accent); background: var(--accent-soft); }
 </style>
