@@ -54,8 +54,16 @@
   }
 
   async function copy() {
+    const chapters = item.chapters.map((chapter) => `## ${chapter.title}\n${chapter.body}`);
+    const decisions = item.decisions.length ? [`## Decisions`, ...item.decisions.map((decision) => `- ${decision}`)] : [];
+    const actions = item.actionItems.length
+      ? [`## Action items`, ...item.actionItems.map((action) => `- ${action.done ? "[x]" : "[ ]"} ${action.text}${action.owner ? ` (${action.owner})` : ""}`)]
+      : [];
+    const feedback = [`# ${item.title || "Untitled note"}`, "", item.summary, "", ...chapters, ...decisions, ...actions]
+      .filter(Boolean)
+      .join("\n\n");
     try {
-      await api.copy(item.summary);
+      await api.copy(feedback);
       copied = true;
       setTimeout(() => (copied = false), 1400);
     } catch {
@@ -76,7 +84,7 @@
       <h3>{item.title || "Untitled note"}</h3>
       <p>{item.summary}</p>
     </div>
-    <button class="icon-btn" onclick={copy} title="Copy summary" aria-label="Copy summary">
+    <button class="icon-btn" onclick={copy} title="Copy feedback" aria-label="Copy feedback">
       <Icon name={copied ? "check" : "copy"} size={16} />
     </button>
   </div>
@@ -141,6 +149,9 @@
           {item.engine}{#if item.sttMs} · heard in {(item.sttMs / 1000).toFixed(1)}s{/if}{#if item.structureMs} · structured in {(item.structureMs / 1000).toFixed(1)}s{/if}
         </span>
         <span class="foot-acts">
+          <button class="btn ghost sm" onclick={copy}>
+            <Icon name={copied ? "check" : "copy"} size={13} />{copied ? "Copied" : "Copy feedback"}
+          </button>
           {#if templates.length}
             <button class="btn ghost sm" onclick={() => (pickerOpen = !pickerOpen)} disabled={regenerating}>
               <Icon name="refresh" size={13} />{regenerating ? "Formatting…" : item.templateId ? "Try a different format" : "Choose a format"}
@@ -156,6 +167,7 @@
             <button class="mode-card" class:selected={regenTemplate === t.id} onclick={() => regenerate(t.id)}>
               <span class="mode-card-name">{t.name}</span>
               <span class="mode-card-desc">{t.description || "No description yet."}</span>
+              <span class="mode-card-action">Use this format</span>
             </button>
           {/each}
         </div>
@@ -244,4 +256,5 @@
   .mode-card.selected { border-color: var(--accent); background: var(--accent-soft); }
   .mode-card-name { font-size: 13px; font-weight: 650; }
   .mode-card-desc { font-size: 11.5px; color: var(--ink-3); line-height: 1.4; }
+  .mode-card-action { margin-top: 4px; font-size: 11.5px; font-weight: 650; color: var(--accent-2); }
 </style>
