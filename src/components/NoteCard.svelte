@@ -152,14 +152,20 @@
 
       {#if pickerOpen}
         <div class="mode-cards" transition:slide={{ duration: 180 }}>
-          <button class="mode-card" class:selected={regenTemplate === "auto"} onclick={() => regenerate("auto")}>
-            <span class="mode-card-name">✨ Let Claude pick</span>
-            <span class="mode-card-desc">Looks at the transcript and picks whichever format fits best.</span>
+          <button class="mode-card accent-auto" class:selected={regenTemplate === "auto"} onclick={() => regenerate("auto")}>
+            <span class="mode-card-label"></span>
+            <span class="mode-card-body">
+              <span class="mode-card-name">✨ Let Claude pick</span>
+              <span class="mode-card-desc">Looks at the transcript and picks whichever format fits best.</span>
+            </span>
           </button>
           {#each templates as t (t.id)}
-            <button class="mode-card" class:selected={regenTemplate === t.id} onclick={() => regenerate(t.id)}>
-              <span class="mode-card-name">{t.name}</span>
-              <span class="mode-card-desc">{t.description || "No description yet."}</span>
+            <button class="mode-card accent-{FEEDBACK_TEMPLATE_IDS.has(t.id) ? 'feedback' : 'general'}" class:selected={regenTemplate === t.id} onclick={() => regenerate(t.id)}>
+              <span class="mode-card-label"></span>
+              <span class="mode-card-body">
+                <span class="mode-card-name">{t.name}</span>
+                <span class="mode-card-desc">{t.description || "No description yet."}</span>
+              </span>
             </button>
           {/each}
         </div>
@@ -232,20 +238,29 @@
   .mode-cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 8px;
+    gap: 10px;
     margin-top: 10px;
   }
   .mode-card {
+    position: relative;
     text-align: left;
     display: grid;
-    gap: 3px;
-    padding: 10px 12px;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
     border-radius: 10px;
-    border: 1px solid var(--line-2);
+    border: 1px solid var(--line);
     background: var(--card);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
   }
-  .mode-card:hover { border-color: var(--accent); }
-  .mode-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .mode-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px -6px rgba(0, 0, 0, 0.22); }
+  .mode-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .mode-card-label { display: block; height: 6px; width: 100%; background: var(--ink-3); }
+  .mode-card.accent-feedback .mode-card-label { background: #e8793f; }
+  .mode-card.accent-general .mode-card-label { background: #4b8bf4; }
+  .mode-card.accent-auto .mode-card-label { background: linear-gradient(90deg, #a36cf0, #4b8bf4); }
+  .mode-card-body { display: grid; gap: 4px; padding: 10px 12px 12px; }
   .mode-card-name { font-size: 13px; font-weight: 650; }
   .mode-card-desc { font-size: 11.5px; color: var(--ink-3); line-height: 1.4; }
 </style>

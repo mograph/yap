@@ -27,6 +27,13 @@
     pickerOpen = false;
   }
 
+  /** Trello-style label color per card, by category: feedback/critique formats get one
+   *  accent, general/meeting formats get another, and the auto-pick card gets its own. */
+  function cardAccent(id: string): string {
+    if (id === "auto") return "auto";
+    return FEEDBACK_TEMPLATE_IDS.has(id) ? "feedback" : "general";
+  }
+
   let justCreatedId = $state("");
 
   $effect(() => {
@@ -86,14 +93,20 @@
       </div>
       {#if pickerOpen}
         <div class="mode-cards" transition:slide={{ duration: 180 }}>
-          <button class="mode-card" class:selected={selectedTemplate === "auto"} onclick={() => pick("auto")}>
-            <span class="mode-card-name">{AUTO_CARD.name}</span>
-            <span class="mode-card-desc">{AUTO_CARD.description}</span>
+          <button class="mode-card accent-auto" class:selected={selectedTemplate === "auto"} onclick={() => pick("auto")}>
+            <span class="mode-card-label"></span>
+            <span class="mode-card-body">
+              <span class="mode-card-name">{AUTO_CARD.name}</span>
+              <span class="mode-card-desc">{AUTO_CARD.description}</span>
+            </span>
           </button>
           {#each enabledTemplates as t (t.id)}
-            <button class="mode-card" class:selected={selectedTemplate === t.id} onclick={() => pick(t.id)}>
-              <span class="mode-card-name">{t.name}</span>
-              <span class="mode-card-desc">{t.description || "No description yet."}</span>
+            <button class="mode-card accent-{cardAccent(t.id)}" class:selected={selectedTemplate === t.id} onclick={() => pick(t.id)}>
+              <span class="mode-card-label"></span>
+              <span class="mode-card-body">
+                <span class="mode-card-name">{t.name}</span>
+                <span class="mode-card-desc">{t.description || "No description yet."}</span>
+              </span>
             </button>
           {/each}
         </div>
@@ -177,22 +190,35 @@
   .chev.up { transform: rotate(180deg); }
   .mode-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 10px;
     margin-top: 10px;
-    max-width: 640px;
+    max-width: 680px;
   }
+  /* Trello-style: a flat white card with a colored label strip across the top, resting
+     shadow that lifts (and the card nudges up) on hover - the same "pick me up" affordance
+     Trello cards give you, so these read as distinct, clickable tiles rather than a plain
+     settings list. */
   .mode-card {
+    position: relative;
     text-align: left;
     display: grid;
-    gap: 3px;
-    padding: 10px 12px;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
     border-radius: 10px;
-    border: 1px solid var(--line-2);
+    border: 1px solid var(--line);
     background: var(--card);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
   }
-  .mode-card:hover { border-color: var(--accent); }
-  .mode-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .mode-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px -6px rgba(0, 0, 0, 0.22); }
+  .mode-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .mode-card-label { display: block; height: 6px; width: 100%; background: var(--ink-3); }
+  .mode-card.accent-feedback .mode-card-label { background: #e8793f; }
+  .mode-card.accent-general .mode-card-label { background: #4b8bf4; }
+  .mode-card.accent-auto .mode-card-label { background: linear-gradient(90deg, #a36cf0, #4b8bf4); }
+  .mode-card-body { display: grid; gap: 4px; padding: 10px 12px 12px; }
   .mode-card-name { font-size: 13px; font-weight: 650; }
   .mode-card-desc { font-size: 11.5px; color: var(--ink-3); line-height: 1.4; }
 
