@@ -1,6 +1,5 @@
 <script lang="ts">
   import { listen } from "@tauri-apps/api/event";
-  import { slide } from "svelte/transition";
   import { api, FEEDBACK_TEMPLATE_IDS, type Note } from "../lib/api";
   import { app } from "../lib/state.svelte";
   import NoteCard from "../components/NoteCard.svelte";
@@ -10,7 +9,6 @@
   let query = $state("");
   let elapsed = $state(0);
   let level = $state(0);
-  let pickerOpen = $state(false);
 
   const phase = $derived(app.noteStatus.phase);
   const recording = $derived(phase === "recording");
@@ -18,21 +16,6 @@
     snap.notes.filter((n) => !query || `${n.title} ${n.summary} ${n.raw}`.toLowerCase().includes(query.toLowerCase())).slice(0, 80),
   );
   const enabledTemplates = $derived(snap.templates.filter((t) => t.enabled));
-  let selectedTemplate = $state("auto");
-  const AUTO_CARD = { id: "auto", name: "✨ Let Claude pick", description: "Looks at what you said and picks whichever template fits best." };
-  const selectedCard = $derived([AUTO_CARD, ...enabledTemplates].find((t) => t.id === selectedTemplate) ?? AUTO_CARD);
-
-  function pick(id: string) {
-    selectedTemplate = id;
-    pickerOpen = false;
-  }
-
-  /** Trello-style label color per card, by category: feedback/critique formats get one
-   *  accent, general/meeting formats get another, and the auto-pick card gets its own. */
-  function cardAccent(id: string): string {
-    if (id === "auto") return "auto";
-    return FEEDBACK_TEMPLATE_IDS.has(id) ? "feedback" : "general";
-  }
 
   let justCreatedId = $state("");
 
@@ -80,42 +63,16 @@
 <header class="hero">
   <div class="copy">
     <h1>Notes</h1>
-    <p>Start a recording and talk through a meeting, a feedback session, or anything else that runs longer than a quick dictation. Yap structures it into a note when you stop.</p>
+    <p>Start a recording and talk through a meeting, a feedback session, or anything else that runs longer than a quick dictation. Yap transcribes it, then structures it - if what you said sounds like feedback, you'll get to pick exactly which format fits once it's done.</p>
     {#if phase === "idle" || phase === "error"}
-      <div class="mode-row">
-        <button class="mode-trigger" class:open={pickerOpen} onclick={() => (pickerOpen = !pickerOpen)} aria-expanded={pickerOpen}>
-          <span class="mode-name">{selectedCard.name}</span>
-          <span class="chev" class:up={pickerOpen}><Icon name="chevron" size={14} /></span>
-        </button>
-        <button class="btn ghost sm" onclick={() => (app.view = "settings")}>
-          <Icon name="sliders" size={13} />Manage
-        </button>
-      </div>
-      {#if pickerOpen}
-        <div class="mode-cards" transition:slide={{ duration: 180 }}>
-          <button class="mode-card accent-auto" class:selected={selectedTemplate === "auto"} onclick={() => pick("auto")}>
-            <span class="mode-card-label"></span>
-            <span class="mode-card-body">
-              <span class="mode-card-name">{AUTO_CARD.name}</span>
-              <span class="mode-card-desc">{AUTO_CARD.description}</span>
-            </span>
-          </button>
-          {#each enabledTemplates as t (t.id)}
-            <button class="mode-card accent-{cardAccent(t.id)}" class:selected={selectedTemplate === t.id} onclick={() => pick(t.id)}>
-              <span class="mode-card-label"></span>
-              <span class="mode-card-body">
-                <span class="mode-card-name">{t.name}</span>
-                <span class="mode-card-desc">{t.description || "No description yet."}</span>
-              </span>
-            </button>
-          {/each}
-        </div>
-      {/if}
+      <button class="manage-link" onclick={() => (app.view = "settings")}>
+        <Icon name="sliders" size={13} />Manage formats
+      </button>
     {/if}
   </div>
   <div class="record-wrap">
     {#if phase === "idle" || phase === "error"}
-      <button class="record" onclick={() => api.startNote(selectedTemplate)} aria-label="Start a note">
+      <button class="record" onclick={() => api.startNote("auto")} aria-label="Start a note">
         <span class="dot"></span>
       </button>
       <span class="record-hint">{phase === "error" ? app.noteStatus.message : "Start a note"}</span>
@@ -170,57 +127,19 @@
 
 <style>
   .hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 30px; margin-bottom: 26px; }
-  .mode-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-  .mode-trigger {
-    display: flex;
+  .manage-link {
+    display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 32px;
-    padding: 0 10px;
-    border-radius: 9px;
-    border: 1px solid var(--line-2);
-    background: var(--card);
-    font-size: 13px;
-    font-weight: 560;
-    max-width: 260px;
-  }
-  .mode-trigger:hover, .mode-trigger.open { border-color: var(--accent); }
-  .mode-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chev { display: inline-flex; color: var(--ink-3); transition: transform 0.2s; }
-  .chev.up { transform: rotate(180deg); }
-  .mode-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 10px;
-    margin-top: 10px;
-    max-width: 680px;
-  }
-  /* Trello-style: a flat white card with a colored label strip across the top, resting
-     shadow that lifts (and the card nudges up) on hover - the same "pick me up" affordance
-     Trello cards give you, so these read as distinct, clickable tiles rather than a plain
-     settings list. */
-  .mode-card {
-    position: relative;
-    text-align: left;
-    display: grid;
-    gap: 0;
+    margin-top: 14px;
+    border: 0;
+    background: none;
     padding: 0;
-    overflow: hidden;
-    border-radius: 10px;
-    border: 1px solid var(--line);
-    background: var(--card);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    color: var(--ink-2);
+    font-size: 12.5px;
+    font-weight: 560;
   }
-  .mode-card:hover { transform: translateY(-2px); box-shadow: 0 8px 16px -6px rgba(0, 0, 0, 0.22); }
-  .mode-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-  .mode-card-label { display: block; height: 6px; width: 100%; background: var(--ink-3); }
-  .mode-card.accent-feedback .mode-card-label { background: #e8793f; }
-  .mode-card.accent-general .mode-card-label { background: #4b8bf4; }
-  .mode-card.accent-auto .mode-card-label { background: linear-gradient(90deg, #a36cf0, #4b8bf4); }
-  .mode-card-body { display: grid; gap: 4px; padding: 10px 12px 12px; }
-  .mode-card-name { font-size: 13px; font-weight: 650; }
-  .mode-card-desc { font-size: 11.5px; color: var(--ink-3); line-height: 1.4; }
+  .manage-link:hover { color: var(--accent-2); }
 
   .copy h1 { font-size: 36px; font-weight: 750; letter-spacing: -0.03em; }
   .copy p { margin-top: 8px; font-size: 15.5px; color: var(--ink-2); max-width: 46ch; line-height: 1.7; }
